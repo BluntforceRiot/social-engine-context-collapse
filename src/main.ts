@@ -1,4 +1,5 @@
 import "./styles.css";
+import { isMuted, playCue, toggleMute } from "./audio";
 import {
   ACTIONS,
   COMMUNITIES,
@@ -12,15 +13,26 @@ import {
 } from "./data";
 import { clearRuns, loadRuns, RUN_HISTORY_KEY, saveRun } from "./storage";
 import {
-  calculateScore,
   createDemoState,
   createGroup,
   createInitialState,
+  getFailureWarnings,
+  getGroupTradeoffs,
+  getVictoryPathProgress,
   joinCommunity,
   playAction,
   resolveReport,
 } from "./sim";
-import type { CreatedGroup, GameState, MetricKey, RunSummary, Screen } from "./types";
+import type {
+  ActionCard,
+  CreatedGroup,
+  FeedItem,
+  GameState,
+  MetricKey,
+  ResponseKey,
+  RunSummary,
+  Screen,
+} from "./types";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -30,6 +42,7 @@ const app = appRoot;
 
 let screen: Screen = "title";
 let game: GameState = createInitialState();
+let hoveredNode = "";
 const savedSummaryIds = new Set<string>();
 let resetConfirmUntil = 0;
 
@@ -45,27 +58,48 @@ const metricLabels: Record<MetricKey, string> = {
   skillCred: "Skill Cred",
 };
 
+const responseLabels: Record<ResponseKey, string> = {
+  clarify: "Clarify publicly",
+  private: "Move to DMs",
+  lean: "Lean into reach",
+  delete: "Delete post",
+  pin: "Pin context",
+  mute: "Mute thread",
+  apologize: "Apologize",
+  friend: "Ask trusted friend",
+  tutorial: "Make follow-up tutorial",
+  logoff: "Log off",
+};
+
 window.addEventListener("hashchange", routeFromHash);
 window.addEventListener("keydown", (event) => {
   if (event.key === "h" || event.key === "H") {
-    if (screen === "title") {
-      navigate("scores");
-    }
+    if (screen === "title") navigate("scores");
   }
-  if (event.key === "Escape") {
-    if (screen !== "title" && !game.report) {
-      navigate("title");
-    }
+  if (event.key === "m" || event.key === "M") {
+    toggleMute();
+    render();
+  }
+  if (event.key === "Escape" && screen !== "title" && !game.report) {
+    navigate("title");
   }
 });
 
 app.addEventListener("click", (event) => {
   const target = (event.target as HTMLElement).closest<HTMLElement>("[data-ui]");
-  if (!target) {
-    return;
+  if (!target) return;
+  playCue("click");
+  handleCommand(target.dataset.ui ?? "", target);
+});
+
+app.addEventListener("mouseover", (event) => {
+  const target = (event.target as Element).closest<Element>("[data-node-name]");
+  if (!target) return;
+  const nextNode = target.getAttribute("data-node-name") ?? "";
+  if (nextNode && nextNode !== hoveredNode) {
+    hoveredNode = nextNode;
+    render();
   }
-  const command = target.dataset.ui ?? "";
-  handleCommand(command, target);
 });
 
 routeFromHash();
@@ -73,6 +107,7 @@ routeFromHash();
 function handleCommand(command: string, target: HTMLElement): void {
   if (command === "start") {
     game = createInitialState();
+    hoveredNode = "";
     navigate("game");
     return;
   }
@@ -100,6 +135,11 @@ function handleCommand(command: string, target: HTMLElement): void {
     navigate("create");
     return;
   }
+  if (command === "toggle-mute") {
+    toggleMute();
+    render();
+    return;
+  }
   if (command === "play-action") {
     const actionId = target.dataset.actionId;
     if (!actionId || game.report || game.summary) return;
@@ -113,6 +153,7 @@ function handleCommand(command: string, target: HTMLElement): void {
       return;
     }
     game = playAction(game, actionId);
+    playCue(cueForReport(game.report?.kind));
     render();
     return;
   }
@@ -120,6 +161,7 @@ function handleCommand(command: string, target: HTMLElement): void {
     const communityId = target.dataset.communityId;
     if (!communityId) return;
     game = joinCommunity(game, communityId);
+    playCue("notification");
     navigate("game", false);
     return;
   }
@@ -132,22 +174,25 @@ function handleCommand(command: string, target: HTMLElement): void {
     const rules = String(data.get("rules") ?? GROUP_RULES[0]);
     const firstPost = String(data.get("firstPost") ?? GROUP_FIRST_POSTS[0]);
     const name = makeGroupName(premise, tone);
+    const forecast = getGroupTradeoffs(premise, tone, rules);
     const group: CreatedGroup = {
       name,
       premise,
       tone,
       rules,
       firstPost,
-      members: 12,
-      health: tone === "chaotic" ? 47 : 62,
+      members: forecast.members,
+      health: forecast.health,
     };
     game = createGroup(game, group);
+    playCue("notification");
     navigate("game", false);
     return;
   }
   if (command === "continue-report") {
     game = resolveReport(game);
     if (game.summary) {
+      playCue(game.summary.outcome);
       navigate("end", false);
     } else {
       render();
@@ -155,9 +200,11 @@ function handleCommand(command: string, target: HTMLElement): void {
     return;
   }
   if (command === "respond") {
-    const response = target.dataset.response as "clarify" | "lean" | "private" | undefined;
+    const response = target.dataset.response as ResponseKey | undefined;
     game = resolveReport(game, response);
+    playCue(response === "lean" ? "viral" : response === "apologize" || response === "private" || response === "friend" ? "repair" : "notification");
     if (game.summary) {
+      playCue(game.summary.outcome);
       navigate("end", false);
     } else {
       render();
@@ -178,18 +225,29 @@ function handleCommand(command: string, target: HTMLElement): void {
 
 function routeFromHash(): void {
   const route = window.location.hash.replace(/^#\/?/, "");
+  hoveredNode = "";
   if (route === "howto") {
     screen = "howto";
   } else if (route === "scores") {
     screen = "scores";
   } else if (route === "community") {
-    game = createInitialState();
+    game = createDemoState("main");
     screen = "community";
   } else if (route === "create") {
-    game = createInitialState();
+    game = createDemoState("main");
     screen = "create";
   } else if (route === "demo-main") {
     game = createDemoState("main");
+    screen = "game";
+  } else if (route === "demo-feed") {
+    game = createDemoState("feed");
+    screen = "game";
+  } else if (route === "demo-graph-hover") {
+    game = createDemoState("graphHover");
+    hoveredNode = "Aunt JPEG";
+    screen = "game";
+  } else if (route === "demo-paths") {
+    game = createDemoState("paths");
     screen = "game";
   } else if (route === "demo-viral") {
     game = createDemoState("viral");
@@ -246,13 +304,14 @@ function renderTitle(): string {
         <p class="eyebrow">Summer into AI Week 2: Independence Engines</p>
         <h1>The Social Engine:<span>Context Collapse</span></h1>
         <p class="subtitle">Find your people. Try not to lose the plot.</p>
-        <p class="pitch">A clickable card and graph strategy sim about the old magic of online communities and the absurd machinery of the feed.</p>
+        <p class="pitch">A sharp card-and-graph strategy sim about the old magic of online communities and the absurd machinery of the feed.</p>
         <div class="hero-actions">
           <button class="primary" data-ui="start">Start Run</button>
           <button data-ui="howto">How To Play</button>
           <button data-ui="scores">Run History</button>
+          <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"} Audio</button>
         </div>
-        <p class="small-note">Fictional platform. No real social-network branding. Local browser storage only.</p>
+        <p class="small-note">v0.2 prototype. Fictional platform. No real social-network branding. Local browser storage only.</p>
       </section>
       <aside class="title-preview" aria-label="SignalBarn preview">
         <div class="browser-chrome"><span></span><span></span><span></span><strong>signalbarn.local</strong></div>
@@ -262,7 +321,7 @@ function renderTitle(): string {
             <span>Recent post: "Does anyone know Linux?"</span>
           </div>
           <div class="mini-feed">
-            <div>Aunt JPEG reacted with a lighthouse.</div>
+            <div>Aunt JPEG reacted with a suspicious crop.</div>
             <div>Linux Forum Mentor sent a calm paragraph.</div>
             <div>Cousin Reply Guy is typing...</div>
           </div>
@@ -278,6 +337,7 @@ function renderHowTo(): string {
     <main class="page-shell">
       <nav class="topbar">
         <button data-ui="title">Title</button>
+        <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"} Audio</button>
         <button data-ui="start" class="primary">Start Run</button>
       </nav>
       <section class="manual-panel">
@@ -285,11 +345,11 @@ function renderHowTo(): string {
         <h2>Thirty days inside the feed engine.</h2>
         <div class="how-grid">
           ${howCard("Choose an action", "Post, reply, join groups, host events, repair damage, or touch grass. Each day advances after the reaction card resolves.")}
-          ${howCard("Read the graph", "People and groups react differently. Losing close friends is worse than losing drama followers.")}
+          ${howCard("Read the graph", "Warm nodes are steady ties, warning nodes create friction, and recent fallout ripples through affected people. Hover nodes for relationship details.")}
           ${howCard("Use virality carefully", "Reach creates opportunity, but Algorithm Heat can pull every audience into the same room.")}
-          ${howCard("Build your path", "Win through community, knowledge, relationships, creator opportunity, organizing, virality, or escape.")}
-          ${howCard("Avoid failures", "Burnout, feed rot, context collapse, niche capture, and reply storms can end the run early.")}
-          ${howCard("Local history", "Finished runs are saved in localStorage only under the key shown in the README.")}
+          ${howCard("Build your path", "Visible victory paths show whether you are moving toward community, knowledge, creator, organizer, relationship, viral, or escape wins.")}
+          ${howCard("Watch warnings", "Context collapse, burnout, feed rot, trust fracture, reality drift, and reply storms warn before they end the run.")}
+          ${howCard("Local history", "Finished runs are saved in localStorage only. No backend, no login, no network calls.")}
         </div>
       </section>
     </main>
@@ -309,6 +369,7 @@ function renderGame(): string {
         </div>
         <div class="header-stat"><span>Score pace</span><strong>${game.scorePreview.toLocaleString()}</strong></div>
         <div class="header-stat"><span>Recent post</span><strong>${escapeHtml(game.recentPost)}</strong></div>
+        <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"}</button>
         <button data-ui="title">Exit</button>
       </header>
       <section class="dashboard-grid">
@@ -331,12 +392,10 @@ function renderGame(): string {
                 ? joinedCommunities.map((name) => `<span>${escapeHtml(name ?? "")}</span>`).join("")
                 : "<p>No joined community yet.</p>"
             }
-            ${game.createdGroup ? `<span>${escapeHtml(game.createdGroup.name)} (${game.createdGroup.members})</span>` : ""}
+            ${game.createdGroup ? `<span>${escapeHtml(game.createdGroup.name)} (${game.createdGroup.members}, health ${game.createdGroup.health})</span>` : ""}
           </div>
-          <div class="log-card">
-            <h3>Recent Feed</h3>
-            ${game.eventLog.map((entry) => `<p>${escapeHtml(entry)}</p>`).join("")}
-          </div>
+          ${renderWarnings(game)}
+          ${renderVictoryPaths(game)}
         </aside>
 
         <section class="graph-panel">
@@ -348,6 +407,7 @@ function renderGame(): string {
             <button data-ui="community">Find People</button>
           </div>
           ${renderGraph(game)}
+          ${renderFeed(game)}
         </section>
 
         <aside class="actions-panel">
@@ -368,12 +428,26 @@ function renderGame(): string {
   `;
 }
 
-function renderActionCard(action: (typeof ACTIONS)[number]): string {
+function renderActionCard(action: ActionCard): string {
+  const meta = describeAction(action);
+  const selected = game.lastActionId === action.id ? "selected" : "";
   return `
-    <button class="action-card" data-ui="play-action" data-action-id="${action.id}">
+    <button class="action-card ${selected}" data-ui="play-action" data-action-id="${action.id}">
       <span>${escapeHtml(action.label)}</span>
       <strong>${escapeHtml(action.title)}</strong>
       <small>${escapeHtml(action.description)}</small>
+      <div class="action-meta">
+        <i>${escapeHtml(meta.focus)}</i>
+        <i>Viral ${action.viralPotential}</i>
+        <i>Relationship ${meta.relationshipRisk}</i>
+      </div>
+      <div class="action-tags">
+        ${meta.tags.map((tag) => `<em>${escapeHtml(tag)}</em>`).join("")}
+      </div>
+      <div class="action-risk">
+        <b>${escapeHtml(meta.upside)}</b>
+        <b>${escapeHtml(meta.risk)}</b>
+      </div>
     </button>
   `;
 }
@@ -388,32 +462,39 @@ function renderCommunityChoice(): string {
       <section class="manual-panel wide">
         <p class="eyebrow">Community Chooser</p>
         <h2>Join a room with gifts, baggage, and at least one recurring argument.</h2>
-        <p class="body-copy">Joining gives instant members and content fuel. It also imports rivalries, tone, and whatever Local Admin Carol has recently decided.</p>
+        <p class="body-copy">Joining gives instant members and content fuel. It also imports rivalries, tone, first-event risk, and whatever Local Admin Carol has recently decided.</p>
         <div class="community-grid">
-          ${COMMUNITIES.map(
-            (community) => `
-              <article class="community-card ${community.tone}">
-                <div>
-                  <span>${community.tone === "healthy" ? "Useful niche" : "Risky weirdness"}</span>
-                  <h3>${escapeHtml(community.name)}</h3>
-                  <p>${escapeHtml(community.hook)}</p>
-                </div>
-                <dl>
-                  <dt>Upside</dt><dd>${escapeHtml(community.upside)}</dd>
-                  <dt>Risk</dt><dd>${escapeHtml(community.risk)}</dd>
-                  <dt>Rivals</dt><dd>${escapeHtml(community.rivals.join(", "))}</dd>
-                </dl>
-                <button class="primary" data-ui="join-community" data-community-id="${community.id}">Join</button>
-              </article>
-            `,
-          ).join("")}
+          ${COMMUNITIES.map(renderCommunityCard).join("")}
         </div>
       </section>
     </main>
   `;
 }
 
+function renderCommunityCard(community: (typeof COMMUNITIES)[number]): string {
+  const likelyAudience = community.tone === "healthy" ? "niche learners, useful lurkers" : "curious weirdos, relatives, drama watchers";
+  const firstEvent = community.tone === "healthy" ? "mentor advice or useful thread" : "rival quote-share or recruitment pressure";
+  return `
+    <article class="community-card ${community.tone}">
+      <div>
+        <span>${community.tone === "healthy" ? "Useful niche" : "Risky weirdness"}</span>
+        <h3>${escapeHtml(community.name)}</h3>
+        <p>${escapeHtml(community.hook)}</p>
+      </div>
+      <dl>
+        <dt>Instant upside</dt><dd>${escapeHtml(community.upside)}</dd>
+        <dt>Baggage / rivals</dt><dd>${escapeHtml(community.rivals.join(", "))}</dd>
+        <dt>Known risk</dt><dd>${escapeHtml(community.risk)}</dd>
+        <dt>Likely audience</dt><dd>${escapeHtml(likelyAudience)}</dd>
+        <dt>First event likelihood</dt><dd>${escapeHtml(firstEvent)}</dd>
+      </dl>
+      <button class="primary" data-ui="join-community" data-community-id="${community.id}">Join</button>
+    </article>
+  `;
+}
+
 function renderCreateGroup(): string {
+  const forecast = getGroupTradeoffs(GROUP_PREMISES[0], GROUP_TONES[0], GROUP_RULES[0]);
   return `
     <main class="page-shell">
       <nav class="topbar">
@@ -424,7 +505,15 @@ function renderCreateGroup(): string {
         <div>
           <p class="eyebrow">Create New Group</p>
           <h2>Build a tiny independence engine.</h2>
-          <p class="body-copy">Creating starts small, but it gives you tone and rule control. It also means every moderation failure has your fingerprints on it.</p>
+          <p class="body-copy">Premise, tone, rules, and first post affect starting members, health, context risk, and launch metrics.</p>
+          <div class="forecast-panel">
+            <span>Default launch forecast</span>
+            <b>${forecast.members} starting members / ${forecast.health} health</b>
+            <p>${escapeHtml(forecast.audience)} · ${forecast.context}</p>
+            <div class="effects-list small">
+              ${Object.entries(forecast.effects).map(([key, value]) => `<span>${value && value > 0 ? "+" : ""}${value} ${escapeHtml(key)}</span>`).join("")}
+            </div>
+          </div>
         </div>
         <form id="create-group-form" class="create-form">
           ${selectField("premise", "Premise", GROUP_PREMISES)}
@@ -446,9 +535,10 @@ function renderScores(): string {
     <main class="page-shell">
       <nav class="topbar">
         <button data-ui="title">Title</button>
+        <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"} Audio</button>
         <button data-ui="start" class="primary">New Run</button>
       </nav>
-      <section class="manual-panel wide">
+      <section class="manual-panel wide score-archive">
         <p class="eyebrow">Local Run History</p>
         <h2>High signals, low combustion.</h2>
         <p class="body-copy">Saved locally in this browser only: <code>${RUN_HISTORY_KEY}</code></p>
@@ -467,9 +557,7 @@ function renderScores(): string {
 
 function renderEndScreen(): string {
   const summary = game.summary;
-  if (!summary) {
-    return renderGame();
-  }
+  if (!summary) return renderGame();
   if (!savedSummaryIds.has(summary.id) && !window.location.hash.includes("demo-")) {
     saveRun(summary);
     savedSummaryIds.add(summary.id);
@@ -500,6 +588,94 @@ function renderEndScreen(): string {
         </div>
       </section>
     </main>
+  `;
+}
+
+function renderWarnings(state: GameState): string {
+  const warnings = getFailureWarnings(state);
+  return `
+    <div class="warning-card">
+      <h3>Failure Warnings</h3>
+      ${
+        warnings.length
+          ? warnings
+              .map(
+                (warning) => `
+                  <article class="${warning.level}">
+                    <b>${escapeHtml(warning.name)}</b>
+                    <span>${escapeHtml(warning.text)}</span>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<p>The feed is only humming ominously.</p>`
+      }
+    </div>
+  `;
+}
+
+function renderVictoryPaths(state: GameState): string {
+  return `
+    <div class="paths-card">
+      <h3>Victory Paths</h3>
+      ${getVictoryPathProgress(state)
+        .map(
+          (path) => `
+            <div class="path-row ${path.status.toLowerCase().replaceAll(" ", "-")}">
+              <span>${escapeHtml(path.name)}</span>
+              <div><i style="width:${path.value}%"></i></div>
+              <b>${escapeHtml(path.status)}</b>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderFeed(state: GameState): string {
+  return `
+    <section class="feed-panel" aria-label="SignalBarn feed">
+      <div class="panel-heading compact">
+        <div>
+          <p class="eyebrow">SignalBarn Feed</p>
+          <h3>Recent posts and reactions</h3>
+        </div>
+      </div>
+      <div class="feed-stack">
+        ${state.feedItems.map(renderFeedItem).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderFeedItem(item: FeedItem): string {
+  return `
+    <article class="feed-item ${item.kind} ${item.context.toLowerCase()}">
+      <div class="feed-topline">
+        <span>Day ${item.day}</span>
+        <b>${escapeHtml(item.context)}</b>
+      </div>
+      <h4>${escapeHtml(item.title)}</h4>
+      <p>${escapeHtml(item.body)}</p>
+      <div class="feed-audience">${escapeHtml(item.audience)}</div>
+      <div class="feed-metrics">
+        <span>${item.reactions} reactions</span>
+        <span>${item.comments} comments</span>
+        <span>${item.shares} shares</span>
+      </div>
+      <div class="comment-samples">
+        ${item.commentSamples
+          .map(
+            (comment) => `
+              <span class="${comment.tone}">
+                <b>${escapeHtml(comment.author)}:</b> ${escapeHtml(comment.text)}
+              </span>
+            `,
+          )
+          .join("")}
+      </div>
+    </article>
   `;
 }
 
@@ -535,12 +711,11 @@ function renderHud(state: GameState): string {
 
 function renderReport(report: GameState["report"]): string {
   if (!report) return "";
+  const options = report.responseOptions ?? ["clarify", "private", "lean"];
   const responseButtons = report.responseRequired
     ? `
-      <div class="response-grid">
-        <button data-ui="respond" data-response="clarify">Clarify publicly</button>
-        <button data-ui="respond" data-response="private">Move to DMs</button>
-        <button data-ui="respond" data-response="lean">Lean into reach</button>
+      <div class="response-grid expanded">
+        ${options.map((option) => `<button data-ui="respond" data-response="${option}">${escapeHtml(responseLabels[option])}</button>`).join("")}
       </div>
     `
     : `<button class="primary" data-ui="continue-report">End Day</button>`;
@@ -550,8 +725,16 @@ function renderReport(report: GameState["report"]): string {
         <p class="eyebrow">${labelReportKind(report.kind)}</p>
         <h2>${escapeHtml(report.title)}</h2>
         <p>${escapeHtml(report.body)}</p>
+        <div class="report-meta">
+          ${report.source ? `<span><b>Source</b>${escapeHtml(report.source)}</span>` : ""}
+          ${report.audience ? `<span><b>Audience</b>${escapeHtml(report.audience)}</span>` : ""}
+          ${report.context ? `<span><b>Context</b>${escapeHtml(report.context)}</span>` : ""}
+          ${report.benefited ? `<span><b>Benefited</b>${escapeHtml(report.benefited)}</span>` : ""}
+          ${report.annoyed ? `<span><b>Annoyed</b>${escapeHtml(report.annoyed)}</span>` : ""}
+        </div>
         <div class="effects-list">
           ${report.effectsText.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          ${(report.followerBreakdown ?? []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
         </div>
         ${responseButtons}
       </article>
@@ -574,7 +757,7 @@ function renderGraph(state: GameState): string {
         label: shortName(name),
         x: 50 + Math.cos(angle) * 34,
         y: 50 + Math.sin(angle) * 34,
-        kind: "person",
+        kind: nodeKind(name),
         score: state.relationships[name],
       };
     }),
@@ -583,41 +766,47 @@ function renderGraph(state: GameState): string {
       label: name,
       x: 22 + index * 18,
       y: 88,
-      kind: "group",
-      score: 70,
+      kind: name.includes("Bigfoot") || name.includes("Saucer") || name.includes("Flat") ? "risky-group" : "group",
+      score: name === state.createdGroup?.name ? state.createdGroup.health : 70,
     })),
   ];
   const links = nodes
     .filter((node) => node.id !== "you")
-    .map(
-      (node) => `
-        <line x1="50" y1="50" x2="${node.x}" y2="${node.y}" class="${node.score > 60 ? "good" : node.score < 35 ? "bad" : "neutral"}" />
-      `,
-    )
+    .map((node) => {
+      const width = (0.4 + Math.max(0, node.score) / 100).toFixed(2);
+      return `
+        <line x1="50" y1="50" x2="${node.x}" y2="${node.y}" stroke-width="${width}" class="${node.score > 64 ? "good" : node.score < 38 ? "bad" : "neutral"} ${state.affectedNodes.includes(node.id) ? "affected" : ""}" />
+      `;
+    })
     .join("");
   const nodeMarkup = nodes
-    .map(
-      (node) => `
-        <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""}">
-          <circle cx="${node.x}" cy="${node.y}" r="${node.kind === "you" ? 7 : 5}" />
+    .map((node) => {
+      const affected = state.affectedNodes.includes(node.id) ? "affected" : "";
+      const selected = hoveredNode === node.id ? "selected" : "";
+      return `
+        <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""} ${affected} ${selected}" data-node-name="${escapeHtml(node.id)}" tabindex="0">
+          <circle cx="${node.x}" cy="${node.y}" r="${node.kind === "you" ? 7 : node.kind.includes("group") ? 6 : 5}" />
           <text x="${node.x}" y="${node.y + 10}">${escapeHtml(node.label)}</text>
         </g>
-      `,
-    )
+      `;
+    })
     .join("");
 
   return `
-    <svg class="social-graph" viewBox="0 0 100 100" role="img" aria-label="A fictional social graph of SignalBarn relationships and groups.">
-      <defs>
-        <radialGradient id="pulse" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#f7d86b" stop-opacity=".9"/>
-          <stop offset="100%" stop-color="#58d7ff" stop-opacity=".1"/>
-        </radialGradient>
-      </defs>
-      <circle cx="50" cy="50" r="${18 + state.metrics.heat * 0.18}" fill="url(#pulse)" class="heat-pulse" />
-      ${links}
-      ${nodeMarkup}
-    </svg>
+    <div class="graph-wrap">
+      <svg class="social-graph" viewBox="0 0 100 100" role="img" aria-label="A fictional social graph of SignalBarn relationships and groups.">
+        <defs>
+          <radialGradient id="pulse" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#f7d86b" stop-opacity=".9"/>
+            <stop offset="100%" stop-color="#58d7ff" stop-opacity=".1"/>
+          </radialGradient>
+        </defs>
+        <circle cx="50" cy="50" r="${18 + state.metrics.heat * 0.18}" fill="url(#pulse)" class="heat-pulse" />
+        ${links}
+        ${nodeMarkup}
+      </svg>
+      ${renderNodeInspector(state)}
+    </div>
     <div class="relationship-list">
       ${Object.entries(state.relationships)
         .sort((a, b) => b[1] - a[1])
@@ -625,6 +814,21 @@ function renderGraph(state: GameState): string {
         .map(([name, value]) => `<span>${escapeHtml(name)} <b>${value}</b></span>`)
         .join("")}
     </div>
+  `;
+}
+
+function renderNodeInspector(state: GameState): string {
+  const node = hoveredNode || state.affectedNodes[0] || "Old Friend Nate";
+  const relationshipValue = state.relationships[node as keyof typeof state.relationships];
+  const community = COMMUNITIES.find((item) => item.name === node);
+  const group = state.createdGroup?.name === node ? state.createdGroup : undefined;
+  return `
+    <aside class="node-inspector">
+      <span>${hoveredNode ? "Inspecting" : "Recent signal"}</span>
+      <h4>${escapeHtml(node)}</h4>
+      <p>${escapeHtml(nodeBlurb(node))}</p>
+      <b>${relationshipValue ? `Trust ${relationshipValue}` : community ? `${community.tone} community` : group ? `Group health ${group.health}` : "Central node"}</b>
+    </aside>
   `;
 }
 
@@ -704,13 +908,101 @@ function labelReportKind(kind: string): string {
   return "Feed Event";
 }
 
+function describeAction(action: ActionCard): {
+  focus: string;
+  upside: string;
+  risk: string;
+  relationshipRisk: string;
+  tags: string[];
+} {
+  const effects = action.effects;
+  const focus = action.tags.includes("knowledge")
+    ? "Skill / Cred"
+    : action.tags.includes("community")
+      ? "Community"
+      : action.tags.includes("repair")
+        ? "Trust Repair"
+        : action.tags.includes("viral")
+          ? "Reach"
+          : action.tags.includes("escape")
+            ? "Burnout Relief"
+            : "Mixed";
+  const upside =
+    (effects.skillCred ?? 0) > 4
+      ? "+skill"
+      : (effects.belonging ?? 0) > 4
+        ? "+belonging"
+        : (effects.agency ?? 0) > 4
+          ? "+agency"
+          : (effects.reach ?? 0) > 120
+            ? "+reach"
+            : (effects.trust ?? 0) > 4
+              ? "+trust"
+              : "situational";
+  const risk =
+    (effects.drama ?? 0) > 6 || action.tags.includes("context")
+      ? "context risk"
+      : (effects.heat ?? 0) > 8 || action.viralPotential > 14
+        ? "heat risk"
+        : (effects.burnout ?? 0) > 5
+          ? "burnout risk"
+          : (effects.realityDrift ?? 0) > 5
+            ? "reality risk"
+            : "low risk";
+  const relationshipRisk = Object.values(action.relationships ?? {}).some((value) => value < -4)
+    ? "High"
+    : Object.values(action.relationships ?? {}).some((value) => value < 0)
+      ? "Medium"
+      : "Low";
+  const tags = [upside, risk, ...action.tags.slice(0, 3)].slice(0, 5);
+  return { focus, upside, risk, relationshipRisk, tags };
+}
+
+function cueForReport(kind?: string): Parameters<typeof playCue>[0] {
+  if (kind === "viral") return "viral";
+  if (kind === "collapse") return "collapse";
+  return "notification";
+}
+
+function nodeKind(name: string): string {
+  if (name === "Old Friend Nate" || name === "Golf Friend Rick" || name === "Small-Town Neighbor") return "close";
+  if (name === "Aunt JPEG" || name === "Uncle Signal" || name === "Concerned Relative") return "reality";
+  if (name === "Cousin Reply Guy" || name === "Former Classmate Darren") return "drama";
+  if (name === "Linux Forum Mentor" || name === "Coworker Maya" || name === "Local Admin Carol") return "steady";
+  return "person";
+}
+
+function nodeBlurb(name: string): string {
+  const blurbs: Record<string, string> = {
+    "Old Friend Nate": "Loyal, allergic to recruitment, excellent early warning system.",
+    "Coworker Maya": "Values credibility and quietly remembers public chaos.",
+    "Aunt JPEG": "Believes suspicious images and resists correction with warmth and force.",
+    "Uncle Signal": "High confidence, low evidence filter, frequent pattern weather.",
+    "Cousin Reply Guy": "Accidentally boosts every argument by refusing to leave.",
+    "Former Classmate Darren": "Rarely appears, somehow arrives with a match.",
+    "Local Admin Carol": "Moderates unpredictably but appreciates visible rules.",
+    "Concerned Relative": "DMs when the public thread gets weird.",
+    "Golf Friend Rick": "Useful hobby connection with mysterious posture language.",
+    "Linux Forum Mentor": "Calm expert energy. Strong defense against feed rot.",
+    "Small-Town Neighbor": "Local context node. Knows which posts will travel offline.",
+  };
+  return blurbs[name] ?? "A visible part of your current independence engine.";
+}
+
 function shortName(name: string): string {
   return name.replace("Former Classmate ", "").replace("Small-Town ", "").replace("Linux Forum ", "");
 }
 
 function makeGroupName(premise: string, tone: string): string {
   const compact = premise
+    .replace("Linux help desk", "Linux Help Desk")
     .replace("Homelab hobby night", "Homelab Porch")
+    .replace("Golf swing study group", "Swing Study Porch")
+    .replace("Retro game exchange", "Retro Trade Table")
+    .replace("Local weird history club", "Local Weird History Room")
+    .replace("Bigfoot field notes", "Blurry Evidence Desk")
+    .replace("Small-town project board", "Small-Town Project Board")
+    .replace("Vintage computer repair room", "Beige Box Bench")
     .replace("Local creator circle", "Local Maker Porch")
     .replace("Vintage computer repair bench", "Beige Box Bench")
     .replace("Golf swing lunch break", "Lunch Break Swing Lab")

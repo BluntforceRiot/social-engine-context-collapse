@@ -26,6 +26,18 @@ export type FollowerKey =
   | "opportunityContacts"
   | "realityRelatives";
 
+export type ResponseKey =
+  | "clarify"
+  | "private"
+  | "lean"
+  | "delete"
+  | "pin"
+  | "mute"
+  | "apologize"
+  | "friend"
+  | "tutorial"
+  | "logoff";
+
 export type RelationshipKey =
   | "Old Friend Nate"
   | "Coworker Maya"
@@ -110,7 +122,35 @@ export interface DayReport {
   body: string;
   kind: "feed" | "viral" | "collapse" | "repair";
   effectsText: string[];
+  source?: string;
+  audience?: string;
+  context?: "Contained" | "Escaped" | "Fraying";
+  followerBreakdown?: string[];
+  benefited?: string;
+  annoyed?: string;
+  affectedNodes?: string[];
+  responseOptions?: ResponseKey[];
   responseRequired?: boolean;
+}
+
+export interface FeedComment {
+  author: string;
+  text: string;
+  tone: "warm" | "useful" | "chaos" | "worry" | "dry";
+}
+
+export interface FeedItem {
+  id: string;
+  day: number;
+  title: string;
+  body: string;
+  kind: "post" | "feed" | "viral" | "collapse" | "repair";
+  audience: string;
+  context: "Contained" | "Escaped" | "Fraying";
+  reactions: number;
+  comments: number;
+  shares: number;
+  commentSamples: FeedComment[];
 }
 
 export interface RunSummary {
@@ -140,6 +180,8 @@ export interface GameState {
   lastActionId?: string;
   lastActionTags: string[];
   eventLog: string[];
+  feedItems: FeedItem[];
+  affectedNodes: string[];
   biggestViralEvent: string;
   worstContextCollapse: string;
   eventsHosted: number;
