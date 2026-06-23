@@ -15,5 +15,6 @@ BUILD_LOG_SOCIAL_ENGINE_V*.txt
 PLAYTEST_SOCIAL_ENGINE_V*.txt
 social-engine-v*-review.zip
 NEUROFORGE_REVIEW_LOOP_SOCIAL_ENGINE_V*.txt
+NEUROFORGE_REVIEW_LOOP_SOCIAL_ENGINE_V*.md
 Feedback*.txt
 instruction prompts.txt
