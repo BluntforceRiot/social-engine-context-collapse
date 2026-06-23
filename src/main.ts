@@ -102,6 +102,13 @@ app.addEventListener("mouseover", (event) => {
   }
 });
 
+app.addEventListener("change", (event) => {
+  const target = event.target as HTMLElement;
+  if (screen === "create" && target.closest("#create-group-form")) {
+    updateCreateForecast();
+  }
+});
+
 routeFromHash();
 
 function handleCommand(command: string, target: HTMLElement): void {
@@ -311,7 +318,7 @@ function renderTitle(): string {
           <button data-ui="scores">Run History</button>
           <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"} Audio</button>
         </div>
-        <p class="small-note">v0.2 prototype. Fictional platform. No real social-network branding. Local browser storage only.</p>
+        <p class="small-note">v0.3 final candidate. Fictional platform. No real social-network branding. Local browser storage only.</p>
       </section>
       <aside class="title-preview" aria-label="SignalBarn preview">
         <div class="browser-chrome"><span></span><span></span><span></span><strong>signalbarn.local</strong></div>
@@ -372,6 +379,7 @@ function renderGame(): string {
         <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"}</button>
         <button data-ui="title">Exit</button>
       </header>
+      ${renderTodayStrip(game)}
       <section class="dashboard-grid">
         <aside class="left-panel">
           <div class="profile-card">
@@ -506,7 +514,8 @@ function renderCreateGroup(): string {
           <p class="eyebrow">Create New Group</p>
           <h2>Build a tiny independence engine.</h2>
           <p class="body-copy">Premise, tone, rules, and first post affect starting members, health, context risk, and launch metrics.</p>
-          <div class="forecast-panel">
+          ${renderForecastPanel()}
+          <div class="forecast-panel legacy-forecast">
             <span>Default launch forecast</span>
             <b>${forecast.members} starting members / ${forecast.health} health</b>
             <p>${escapeHtml(forecast.audience)} · ${forecast.context}</p>
@@ -575,6 +584,7 @@ function renderEndScreen(): string {
         <p class="headline">${escapeHtml(summary.headline)}</p>
         <div class="summary-grid">
           ${summaryItem("Final Score", summary.score.toLocaleString())}
+          ${summaryItem("Top Path", extractTopPath(summary.title))}
           ${summaryItem("Day Reached", String(summary.day))}
           ${summaryItem("Trust", String(summary.trust))}
           ${summaryItem("Best Relationship", summary.bestRelationship)}
@@ -586,6 +596,7 @@ function renderEndScreen(): string {
             `${summary.followers.closeFriends} close, ${summary.followers.nicheMembers} niche, ${summary.followers.dramaFollowers} drama`,
           )}
         </div>
+        <p class="archive-note">Run archived locally in this browser. Clear the archive from Run History when you want a fresh slate.</p>
       </section>
     </main>
   `;
@@ -709,6 +720,19 @@ function renderHud(state: GameState): string {
   `;
 }
 
+function renderTodayStrip(state: GameState): string {
+  return `
+    <section class="today-strip">
+      <div>
+        <span>Today's goal</span>
+        <b>${escapeHtml(todayGoal(state))}</b>
+      </div>
+      <p>Pick one action, resolve the reaction card, and keep useful people closer than the argument.</p>
+      <em>Hover graph nodes for context. Drama followers are not the same as community.</em>
+    </section>
+  `;
+}
+
 function renderReport(report: GameState["report"]): string {
   if (!report) return "";
   const options = report.responseOptions ?? ["clarify", "private", "lean"];
@@ -725,6 +749,10 @@ function renderReport(report: GameState["report"]): string {
         <p class="eyebrow">${labelReportKind(report.kind)}</p>
         <h2>${escapeHtml(report.title)}</h2>
         <p>${escapeHtml(report.body)}</p>
+        <div class="report-brief">
+          <b>${report.kind === "collapse" ? "Context escaped" : report.kind === "viral" ? "Reach spike" : "Feed reaction"}</b>
+          <span>${escapeHtml(report.context ?? "Contained")} audience pressure</span>
+        </div>
         <div class="report-meta">
           ${report.source ? `<span><b>Source</b>${escapeHtml(report.source)}</span>` : ""}
           ${report.audience ? `<span><b>Audience</b>${escapeHtml(report.audience)}</span>` : ""}
@@ -764,8 +792,8 @@ function renderGraph(state: GameState): string {
     ...groupNodes.slice(0, 4).map((name, index) => ({
       id: name,
       label: name,
-      x: 22 + index * 18,
-      y: 88,
+      x: 18 + index * 21,
+      y: index % 2 === 0 ? 86 : 91,
       kind: name.includes("Bigfoot") || name.includes("Saucer") || name.includes("Flat") ? "risky-group" : "group",
       score: name === state.createdGroup?.name ? state.createdGroup.health : 70,
     })),
@@ -807,10 +835,11 @@ function renderGraph(state: GameState): string {
       </svg>
       ${renderNodeInspector(state)}
     </div>
+    ${renderGraphLegend()}
     <div class="relationship-list">
       ${Object.entries(state.relationships)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
+        .slice(0, 4)
         .map(([name, value]) => `<span>${escapeHtml(name)} <b>${value}</b></span>`)
         .join("")}
     </div>
@@ -830,6 +859,68 @@ function renderNodeInspector(state: GameState): string {
       <b>${relationshipValue ? `Trust ${relationshipValue}` : community ? `${community.tone} community` : group ? `Group health ${group.health}` : "Central node"}</b>
     </aside>
   `;
+}
+
+function renderGraphLegend(): string {
+  return `
+    <div class="graph-legend" aria-label="Graph legend">
+      <span><i class="legend-close"></i>Close</span>
+      <span><i class="legend-steady"></i>Steady</span>
+      <span><i class="legend-reality"></i>Reality friction</span>
+      <span><i class="legend-drama"></i>Drama</span>
+      <span><i class="legend-group"></i>Group</span>
+      <span><i class="legend-strain"></i>Thin red lines strain</span>
+    </div>
+  `;
+}
+
+function renderForecastPanel(
+  premise = GROUP_PREMISES[0],
+  tone = GROUP_TONES[0],
+  rules = GROUP_RULES[0],
+  firstPost = GROUP_FIRST_POSTS[0],
+): string {
+  return `<div id="create-forecast-panel" class="forecast-panel">${renderForecastContent(premise, tone, rules, firstPost)}</div>`;
+}
+
+function renderForecastContent(
+  premise: string,
+  tone: string,
+  rules: string,
+  firstPost: string,
+): string {
+  const forecast = getGroupTradeoffs(premise, tone, rules);
+  const postSignal = firstPost.includes("evidence")
+    ? "evidence-first launch"
+    : firstPost.includes("win")
+      ? "positive ritual"
+      : firstPost.includes("meetup")
+        ? "offline bridge"
+        : "conversation starter";
+  return `
+    <span>Live launch forecast</span>
+    <b>${forecast.members} starting members / ${forecast.health} health</b>
+    <p>${escapeHtml(forecast.audience)} / ${forecast.context} / ${escapeHtml(postSignal)}</p>
+    <dl class="forecast-readout">
+      <dt>Risk</dt><dd>${escapeHtml(forecast.risk)}</dd>
+      <dt>Tradeoffs</dt><dd>${forecast.tradeoffs.map(escapeHtml).join(", ")}</dd>
+    </dl>
+    <div class="effects-list small">
+      ${Object.entries(forecast.effects).map(([key, value]) => `<span>${value && value > 0 ? "+" : ""}${value} ${escapeHtml(key)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function updateCreateForecast(): void {
+  const form = app.querySelector<HTMLFormElement>("#create-group-form");
+  const panel = app.querySelector<HTMLElement>("#create-forecast-panel");
+  if (!form || !panel) return;
+  const data = new FormData(form);
+  const premise = String(data.get("premise") ?? GROUP_PREMISES[0]);
+  const tone = String(data.get("tone") ?? GROUP_TONES[0]);
+  const rules = String(data.get("rules") ?? GROUP_RULES[0]);
+  const firstPost = String(data.get("firstPost") ?? GROUP_FIRST_POSTS[0]);
+  panel.innerHTML = renderForecastContent(premise, tone, rules, firstPost);
 }
 
 function renderMiniGraph(): string {
@@ -906,6 +997,25 @@ function labelReportKind(kind: string): string {
   if (kind === "collapse") return "Context Collapse";
   if (kind === "repair") return "Relationship Repair";
   return "Feed Event";
+}
+
+function todayGoal(state: GameState): string {
+  const warnings = getFailureWarnings(state);
+  if (warnings.some((warning) => warning.name.includes("Burnout"))) return "Lower burnout before the feed becomes the boss.";
+  if (warnings.some((warning) => warning.name.includes("Context"))) return "Contain the room before every audience meets.";
+  if (warnings.some((warning) => warning.name.includes("Trust"))) return "Repair one quiet relationship before chasing reach.";
+  if (!state.joinedCommunityIds.length && !state.createdGroup) return "Find or build a room that is not just raw followers.";
+  if (state.metrics.skillCred < 35) return "Turn attention into something useful.";
+  return "Grow a path without letting drama define the score.";
+}
+
+function extractTopPath(title: string): string {
+  return title
+    .replace("Hybrid Victory: ", "")
+    .replace(" Victory", "")
+    .replace("Context Collapse", "Context Collapse")
+    .replace("Feed Rot", "Feed Rot")
+    .replace("Burnout Spiral", "Burnout Spiral");
 }
 
 function describeAction(action: ActionCard): {

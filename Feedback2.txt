@@ -1,0 +1,324 @@
+PROJECT: The Social Engine: Context Collapse v0.3 final candidate pass
+
+Goal:
+Prepare v0.3 as the public submission candidate.
+
+Do not push or deploy until explicitly approved.
+
+Current v0.2 status:
+
+* Core game loop works.
+* 30-day run works.
+* Social graph works.
+* Named relationships work.
+* Join community works.
+* Create group works.
+* Created groups appear as graph nodes.
+* Feed events, viral events, context collapse, and fallout responses work.
+* Multiple victory paths and failure endings work.
+* Victory path progress is visible.
+* Failure warnings are visible.
+* Generated WebAudio and mute toggle exist.
+* GitHub Pages workflow exists.
+* Verification passes.
+
+Do not rewrite the app.
+Do not add backend.
+Do not add login.
+Do not add network calls.
+Do not add real platform branding.
+Do not make this a party-politics simulator.
+Do not over-expand the system.
+
+This is a final public-presentation, onboarding, balance, and clarity pass.
+
+Critical visual standard:
+The artifact must look HD, crisp, modern, and sleek.
+
+Do not interpret “early internet,” “forum,” “social network,” or “nostalgia” as permission to make the UI muddy, blurry, cramped, low contrast, or visually dated.
+
+The theme can be nostalgic, but the execution should feel like a premium modern browser game.
+
+Required visual qualities:
+
+* sharp typography
+* clean spacing
+* readable labels
+* strong contrast
+* polished hover/focus states
+* smooth animations
+* crisp SVG rendering
+* deliberate color palette
+* no blurry raster UI
+* no default browser controls
+* no gray-box prototype panels
+* no cramped text blocks
+* no fake Facebook clone styling
+
+Priority 1: First-run clarity
+
+The main dashboard has a lot of good information, but it is dense.
+
+Improve the first-run experience so a new player immediately understands:
+
+1. choose one action per day
+2. actions affect reach, trust, agency, belonging, drama, burnout, heat, and relationships
+3. the social graph shows who is affected
+4. viral/context-collapse events are dangerous multipliers
+5. multiple victory paths are possible
+
+Add or improve a compact “Today’s goal” or “How this works” strip on the main dashboard.
+
+Example:
+Pick one action. Watch the graph react. Keep your people, grow your reach, and survive the feed.
+
+Do not add a long tutorial wall.
+
+Priority 2: Make the main dashboard easier to scan
+
+Keep the rich UI, but improve hierarchy.
+
+Improve:
+
+* reduce visual clutter where possible
+* make the current day/action decision more prominent
+* make the feed stack easier to read
+* make graph effects easier to notice
+* keep victory paths visible but not overwhelming
+* make failure warnings easier to understand at a glance
+* make the bottom meters cleaner and more readable
+
+The main screen should be screenshot-friendly and playable at 1440x900.
+
+Priority 3: Social graph polish
+
+The graph is good. Make it feel more alive and more readable.
+
+Improve:
+
+* avoid lower-label clustering where possible
+* make affected-node animation more noticeable but not noisy
+* make node categories more visually distinct
+* make close ties, community nodes, risky groups, and reality-friction relatives recognizable
+* make hover cards concise and useful
+* make edge strain/trust styling clearer
+
+The player should be able to tell:
+
+* who helped
+* who got annoyed
+* who is strained
+* who is risky
+* which communities are healthy
+
+Priority 4: Dynamic create-group forecast
+
+The v0.2 receipt notes that the create-group preview is static until launch.
+
+Fix this:
+
+* update the forecast dynamically when premise/tone/rules/first post selections change
+* preview expected starting members, health, audience, risk, and likely tradeoffs
+* keep the preview readable and not overly numeric
+
+This is one of the last obvious rough edges.
+
+Priority 5: Balance pass from simulated/playtest runs
+
+Run at least three full 30-day playtest runs.
+
+Tune:
+
+* early failure thresholds
+* victory path labels
+* drama/burnout/reality drift growth
+* follower category changes
+* viral event probability
+* context collapse frequency
+* score formula
+* relationship damage/repair effectiveness
+
+Goal:
+
+* player should usually survive long enough to see the system
+* bad choices should bite
+* virality should feel tempting but dangerous
+* relationship repair should matter
+* multiple victory paths should be realistically reachable
+* failure should feel earned, not random
+
+Add a brief playtest/balance note to the receipt.
+
+Priority 6: Expand only the most useful content gaps
+
+Do not bloat the game.
+
+Add a small number of high-impact content cards if useful:
+
+* one more wholesome community event
+* one more relationship repair event
+* one more weird-relative event
+* one more niche-skill success event
+* one more context-collapse disaster
+* one more “found your people” positive moment
+
+The game should preserve both sides:
+
+* the old joy of finding communities online
+* the modern absurdity of the feed turning relationships into public weather
+
+Priority 7: Improve viral/context-collapse modals
+
+These are good. Make them final.
+
+Improve:
+
+* make source/audience/context state more visually obvious
+* make “who benefited” and “who got annoyed” easier to scan
+* make response buttons clearer
+* add stronger small animation for viral surge/context collapse
+* keep the writing funny and sharp
+
+Priority 8: Victory/failure/end screen polish
+
+Improve:
+
+* victory screen should feel like a real ending, not just stats
+* failure screen should be funny and painful
+* high-score/run-history screen should feel like a clean local archive
+* add explicit reset run history button if not already present
+* keep localStorage-only note clear
+
+End-of-run summary should show:
+
+* final score
+* victory/failure type
+* top path
+* biggest viral event
+* best relationship preserved
+* worst context collapse
+* community joined/created
+* one funny final headline
+
+Priority 9: Mobile / smaller screen polish
+
+The game is desktop-first, but do a small responsive pass:
+
+* no broken overflow
+* action panel usable
+* graph visible or scrollable
+* modals fit
+* text remains readable
+
+Do not redesign the game for phones. Just avoid obvious brokenness.
+
+Priority 10: Repo cleanliness
+
+The v0.2 receipt shows review receipts as untracked artifacts.
+
+Clean this up before final:
+
+* ensure generated review artifacts are either intentionally ignored or included in the review package only
+* keep the committed repo clean after source/docs/build-log commit
+* do not leave random receipts/logs untracked unless intentionally ignored
+* update `.gitignore` if needed
+
+Priority 11: Submission docs
+
+Update:
+
+* README.md
+* docs/DESIGN_NOTES.md
+* docs/SUBMISSION_NOTES.md
+
+Make sure public framing includes:
+
+* The Social Engine is a static browser game.
+* No backend.
+* No login.
+* No network calls.
+* No real platform branding.
+* SignalBarn is fictional.
+* The game is about social media dynamics without party-politics simulation.
+* It models old internet community discovery, social graph maintenance, niche groups, viral reach, weird relatives, context collapse, relationship repair, and multiple victory paths.
+
+Theme explanation:
+The internet gave people independence from geography and old gatekeepers. Then the feed became a new engine of reach, belonging, argument, dependency, and context collapse.
+
+Priority 12: GitHub Pages readiness
+
+Keep `.github/workflows/deploy.yml`.
+Do not deploy until explicitly approved.
+
+Potential repo:
+social-engine-context-collapse
+
+Potential URL:
+https://bluntforceriot.github.io/social-engine-context-collapse/
+
+Verification:
+Run:
+
+* npm install if needed
+* npm run typecheck
+* npm run build
+* npm audit --audit-level=moderate
+* npm run preview and HTTP check
+* npm run screenshots:v03
+
+Screenshots:
+
+* output/social-engine-title-v03.png
+* output/social-engine-howto-v03.png
+* output/social-engine-main-v03.png
+* output/social-engine-graph-hover-v03.png
+* output/social-engine-community-choice-v03.png
+* output/social-engine-create-group-v03.png
+* output/social-engine-feed-event-v03.png
+* output/social-engine-viral-event-v03.png
+* output/social-engine-context-collapse-v03.png
+* output/social-engine-victory-paths-v03.png
+* output/social-engine-victory-v03.png
+* output/social-engine-failure-v03.png
+* output/social-engine-highscores-v03.png
+* output/social-engine-mobile-v03.png if practical
+
+Create:
+
+* BUILD_RECEIPT_SOCIAL_ENGINE_V03.md
+* BUILD_LOG_SOCIAL_ENGINE_V03.txt
+* social-engine-v03-review.zip
+
+Receipt must include:
+
+* commit hash
+* verification results
+* playtest/balance summary
+* gameplay changes
+* visual/UI polish summary
+* content/event additions
+* victory/failure tuning
+* repo cleanliness status
+* known issues
+* screenshot paths
+* deploy recommendation
+
+Zip must include:
+
+* source
+* assets
+* docs
+* screenshots
+* receipt/log
+* package files
+
+Exclude:
+
+* node_modules
+* dist
+* .git
+* caches
+* old review zips/logs
+
+Final rule:
+v0.3 should be the public submission candidate. Make the game clearer, sharper, more balanced, and more alive without turning it into a giant platform simulator.

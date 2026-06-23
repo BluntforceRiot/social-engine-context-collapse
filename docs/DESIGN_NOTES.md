@@ -31,6 +31,16 @@ The brief asks for nostalgia without mud. v0.2 keeps early-internet/forum energy
 - no gray-box prototype panels
 - no blurry raster UI
 
+## v0.3 Final Candidate Pass
+
+v0.3 focuses on first-run clarity, public-demo scan speed, and balance rather than new systems.
+
+- The run screen now opens with a compact "Today's goal / how this works" strip.
+- The social graph has a category legend, fewer lower-label collisions, affected-node pulses, and clearer relationship strain.
+- Viral and context-collapse cards expose source, audience, context, who benefited, and who got annoyed in a faster scan pattern.
+- Create Group now has a live forecast that changes with premise, tone, rules, and first post.
+- Failure thresholds and repair responses were tuned after automated full-run playtests so most runs reach a readable ending instead of collapsing too early.
+
 ## Core Loop
 
 Each run lasts 30 days.
@@ -70,3 +80,5 @@ Followers are split into categories because the game should not reward raw audie
 ## Victory And Failure
 
 Multiple victory paths are calculated from the final state and shown during play as rough progress. Hybrid titles are possible when multiple paths qualify. Failures can occur early if trust, burnout, drama, reality drift, or relationship health collapses.
+
+The v0.3 target feel is "painfully funny but fair": risky viral play can still win, but repair, moderation, local organizing, and useful knowledge posts now have enough weight to compete with raw reach.

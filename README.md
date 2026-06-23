@@ -4,6 +4,8 @@ Find your people. Try not to lose the plot.
 
 The Social Engine: Context Collapse is a static browser card-and-graph strategy sim about using a fictional social platform, SignalBarn, to build community, gain agency, survive virality, and avoid context collapse.
 
+Current version: v0.3 final candidate.
+
 Built for Summer into AI Week 2: Independence Engines.
 
 ## Pitch
@@ -42,6 +44,8 @@ Losing drama followers can be healthy. Losing close friends can be devastating.
 
 Victory paths include Community, Viral, Knowledge, Relationship, Creator, Organizer, and Escape. Failure endings include Context Collapse, Feed Rot, Unfriended by Christmas, Niche Capture, Burnout Spiral, Reply Guy Singularity, and Algorithm Dependent.
 
+The v0.3 run screen includes a compact "Today's goal" strip for first-time clarity, a graph legend for node categories, stronger viral/context-collapse cards, and a live create-group forecast that updates as you change premise, tone, rules, and first post.
+
 ## Controls
 
 - Click action cards to play a day.
@@ -69,7 +73,7 @@ There is no backend, login, tracking, analytics, or online leaderboard.
 
 ## Public Demo Notes
 
-This is v0.2: a lively public-candidate prototype with original CSS/SVG interface art, a working social graph, stacked feed cards, strategic action cards, community joining/creation, WebAudio cues, virality, context collapse, multiple endings, visible victory paths, failure warnings, and local run history.
+This is v0.3: a public final-candidate prototype with original CSS/SVG interface art, a working social graph, stacked feed cards, strategic action cards, community joining/creation, WebAudio cues, virality, context collapse, multiple endings, visible victory paths, failure warnings, local run history, and automated 30-day playtest coverage.
 
 All platform, character, and community names are fictional. The game does not use Facebook, Meta, Twitter/X, Reddit, TikTok, or any real platform branding, logos, UI clones, icons, trademarked visuals, or exact layouts.
 
@@ -83,15 +87,26 @@ All platform, character, and community names are fictional. The game does not us
 
 ## Screenshots
 
-Generate v0.2 screenshots after starting preview:
+Generate v0.3 screenshots after starting preview:
 
 ```sh
 npm run build
 npm run preview
-npm run screenshots:v02
+npm run screenshots:v03
 ```
 
 The screenshot script expects the preview server at `http://127.0.0.1:4173/` by default. Set `SOCIAL_ENGINE_BASE_URL` if using another port.
+
+## Balance Smoke Test
+
+Run three automated 30-day strategy passes against a local preview server:
+
+```sh
+npm run preview
+npm run playtest:v03
+```
+
+The playtest script writes `PLAYTEST_SOCIAL_ENGINE_V03.txt` locally for the review packet.
 
 ## GitHub Pages
 

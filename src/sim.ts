@@ -56,14 +56,14 @@ const responseEffects: Record<
 > = {
   clarify: {
     title: "Clarified Publicly",
-    effects: { trust: 8, drama: -13, heat: -10, burnout: 3, agency: 1 },
-    followers: { dramaFollowers: -8 },
+    effects: { trust: 9, drama: -14, heat: -11, burnout: 2, agency: 1 },
+    followers: { dramaFollowers: -9 },
     affectedNodes: ["Coworker Maya", "Concerned Relative"],
     feedText: "A plain-language clarification trims the fire without fully starving it.",
   },
   private: {
     title: "Moved It To DMs",
-    effects: { trust: 10, belonging: 6, drama: -8, heat: -8, burnout: 2, reach: -80 },
+    effects: { trust: 12, belonging: 7, drama: -9, heat: -9, burnout: 1, reach: -70 },
     followers: { closeFriends: 1, dramaFollowers: -5 },
     affectedNodes: ["Old Friend Nate", "Concerned Relative"],
     feedText: "The public room gets quieter because the real repair moved somewhere human-sized.",
@@ -98,14 +98,14 @@ const responseEffects: Record<
   },
   apologize: {
     title: "Apologized Clearly",
-    effects: { trust: 12, drama: -12, heat: -8, burnout: 4, belonging: 2 },
+    effects: { trust: 13, drama: -13, heat: -9, burnout: 3, belonging: 3 },
     followers: { dramaFollowers: -6 },
     affectedNodes: ["Old Friend Nate", "Coworker Maya", "Concerned Relative"],
     feedText: "A direct apology does not impress strangers, which is how you know it might be real.",
   },
   friend: {
     title: "Asked A Trusted Friend To Help",
-    effects: { trust: 9, belonging: 6, drama: -8, heat: -4, agency: 3 },
+    effects: { trust: 11, belonging: 7, drama: -9, heat: -5, agency: 3 },
     followers: { closeFriends: 1, nicheMembers: 5 },
     affectedNodes: ["Old Friend Nate", "Linux Forum Mentor"],
     feedText: "A steady person explains the missing context and the room remembers breathing.",
@@ -154,7 +154,7 @@ export function createInitialState(): GameState {
       agency: 28,
       belonging: 42,
       drama: 12,
-      burnout: 18,
+      burnout: 15,
       heat: 16,
       realityDrift: 8,
       skillCred: 20,
@@ -403,22 +403,22 @@ export function calculateScore(state: GameState): number {
     Object.values(state.relationships).reduce((sum, value) => sum + value, 0) /
     Object.values(state.relationships).length;
   const score =
-    m.reach * 0.22 +
-    m.trust * 32 +
-    m.agency * 34 +
-    m.belonging * 30 +
+    m.reach * 0.2 +
+    m.trust * 36 +
+    m.agency * 36 +
+    m.belonging * 32 +
     m.skillCred * 38 +
     f.closeFriends * 140 +
     f.nicheMembers * 8 +
     f.casualFollowers * 2 +
     f.opportunityContacts * 180 +
-    relationshipAverage * 12 +
+    relationshipAverage * 14 +
     state.eventsHosted * 260 +
     state.repairsMade * 110 +
     communityBonus -
-    m.drama * 24 -
-    m.burnout * 23 -
-    m.realityDrift * 28 -
+    m.drama * 22 -
+    m.burnout * 22 -
+    m.realityDrift * 30 -
     f.dramaFollowers * 4;
   return Math.max(0, Math.round(score));
 }
@@ -505,54 +505,65 @@ export function getGroupTradeoffs(
   health: number;
   audience: string;
   context: "Contained" | "Escaped" | "Fraying";
+  risk: string;
+  tradeoffs: string[];
 } {
   const effects: Partial<Metrics> = { agency: 8, belonging: 8, trust: 3, heat: 5, reach: 100 };
   const followers: Partial<Followers> = { nicheMembers: 12, casualFollowers: 8 };
   let members = 12;
   let health = 62;
   let context: "Contained" | "Escaped" | "Fraying" = "Contained";
+  const tradeoffs: string[] = ["starts small", "rules shape the room"];
 
   if (premise.toLowerCase().includes("linux") || premise.toLowerCase().includes("computer")) {
     effects.skillCred = (effects.skillCred ?? 0) + 8;
     followers.opportunityContacts = 1;
+    tradeoffs.push("+skill credibility");
   }
   if (premise.toLowerCase().includes("bigfoot") || premise.toLowerCase().includes("weird")) {
     effects.reach = (effects.reach ?? 0) + 90;
     effects.realityDrift = (effects.realityDrift ?? 0) + 6;
     followers.realityRelatives = 3;
     context = "Fraying";
+    tradeoffs.push("+reach, +reality risk");
   }
   if (premise.toLowerCase().includes("local") || premise.toLowerCase().includes("town")) {
     effects.agency = (effects.agency ?? 0) + 5;
     effects.belonging = (effects.belonging ?? 0) + 4;
     members += 6;
+    tradeoffs.push("+local agency");
   }
   if (tone.includes("chaotic")) {
     effects.heat = (effects.heat ?? 0) + 8;
     effects.drama = (effects.drama ?? 0) + 6;
     health -= 14;
     context = "Fraying";
+    tradeoffs.push("+heat, lower health");
   }
   if (tone.includes("technical") || tone.includes("strict")) {
     effects.skillCred = (effects.skillCred ?? 0) + 5;
     effects.trust = (effects.trust ?? 0) + 4;
     effects.belonging = (effects.belonging ?? 0) - 1;
     health += 8;
+    tradeoffs.push("+trust, narrower welcome");
   }
   if (tone.includes("welcoming") || tone.includes("wholesome") || tone.includes("kind")) {
     effects.trust = (effects.trust ?? 0) + 4;
     effects.belonging = (effects.belonging ?? 0) + 5;
     health += 9;
+    tradeoffs.push("+belonging");
   }
   if (rules.includes("cite") || rules.includes("inspection") || rules.includes("sources")) {
     effects.realityDrift = (effects.realityDrift ?? 0) - 5;
     effects.trust = (effects.trust ?? 0) + 3;
     health += 6;
+    tradeoffs.push("-reality drift");
   }
   if (rules.includes("spirals") || rules.includes("link spam")) {
     effects.drama = (effects.drama ?? 0) - 5;
     effects.heat = (effects.heat ?? 0) - 2;
     health += 4;
+    tradeoffs.push("-drama");
   }
   return {
     effects,
@@ -561,6 +572,8 @@ export function getGroupTradeoffs(
     health: clamp(health, 35, 92),
     audience: premise.includes("Local") || premise.includes("town") ? "local friends and niche neighbors" : "niche members and curious lurkers",
     context,
+    risk: context === "Fraying" ? "context may fray early" : health > 72 ? "stable but slower" : "manageable launch risk",
+    tradeoffs: Array.from(new Set(tradeoffs)).slice(0, 5),
   };
 }
 
@@ -708,11 +721,11 @@ export function createDemoState(
 
 function buildDayReport(state: GameState, action: ActionCard): DayReport {
   const contextCollapseRisk =
-    state.metrics.heat * 0.34 +
-    state.metrics.drama * 0.32 +
-    state.metrics.realityDrift * 0.18 +
-    (action.tags.includes("context") ? 18 : 0) +
-    (action.tags.includes("argument") ? 12 : 0);
+    state.metrics.heat * 0.28 +
+    state.metrics.drama * 0.26 +
+    state.metrics.realityDrift * 0.16 +
+    (action.tags.includes("context") ? 14 : 0) +
+    (action.tags.includes("argument") ? 10 : 0);
   const viralChance =
     action.viralPotential +
     state.metrics.heat * 0.18 +
@@ -720,7 +733,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
     (state.joinedCommunityIds.length + (state.createdGroup ? 1 : 0)) * 2;
   const roll = Math.random() * 100;
 
-  if (roll < Math.min(38, viralChance)) {
+  if (roll < Math.min(34, viralChance)) {
     const viralGain = 420 + Math.round(state.metrics.heat * 6 + action.viralPotential * 18);
     const report: DayReport = {
       kind: "viral",
@@ -746,14 +759,14 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
     return report;
   }
 
-  if (roll < Math.min(32, contextCollapseRisk) && state.day > 2) {
+  if (roll < Math.min(24, contextCollapseRisk) && state.day > 4) {
     const report: DayReport = {
       kind: "collapse",
       title: "Context Collapse: The Wrong Room Found It",
       body: "A post meant for one circle arrives in another with all the nuance sanded off.",
       effectsText: summarizeEffects(
-        { trust: -10, drama: 16, heat: 13, burnout: 8 },
-        { dramaFollowers: 15, closeFriends: -1 },
+        { trust: -8, drama: 13, heat: 10, burnout: 6 },
+        { dramaFollowers: 12 },
       ),
       source: sample(["family argument", "screenshot spread", "quote-share", "reply fight"]),
       audience: "close friends, relatives, coworkers, strangers",
@@ -765,8 +778,8 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
       responseOptions: ["clarify", "private", "delete", "apologize", "friend", "mute", "logoff"],
       responseRequired: true,
     };
-    applyEffects(state, { trust: -10, drama: 16, heat: 13, burnout: 8 });
-    applyFollowers(state, { dramaFollowers: 15, closeFriends: -1 });
+    applyEffects(state, { trust: -8, drama: 13, heat: 10, burnout: 6 });
+    applyFollowers(state, { dramaFollowers: 12 });
     state.worstContextCollapse = report.title;
     return report;
   }
@@ -869,13 +882,13 @@ function checkFailure(state: GameState): string | undefined {
   const m = state.metrics;
   const f = state.followers;
   const replyGuy = state.relationships["Cousin Reply Guy"];
-  if (m.burnout >= 96) return "Burnout Spiral";
-  if (m.trust <= 8 && m.drama >= 72) return "Context Collapse";
-  if (m.reach > 2500 && m.trust < 22) return "Feed Rot";
-  if (f.closeFriends <= 1 || state.relationships["Old Friend Nate"] <= 8) return "Unfriended by Christmas";
-  if (m.realityDrift >= 82 && f.realityRelatives > f.nicheMembers * 0.5) return "Niche Capture";
-  if (replyGuy <= 8 && f.dramaFollowers > f.casualFollowers * 0.65) return "Reply Guy Singularity";
-  if (m.heat >= 92 && m.agency < 35) return "Algorithm Dependent";
+  if (m.burnout >= 98) return "Burnout Spiral";
+  if (m.trust <= 6 && m.drama >= 80) return "Context Collapse";
+  if (m.reach > 3000 && m.trust < 18) return "Feed Rot";
+  if (f.closeFriends <= 0 || state.relationships["Old Friend Nate"] <= 5) return "Unfriended by Christmas";
+  if (m.realityDrift >= 90 && f.realityRelatives > f.nicheMembers * 0.55) return "Niche Capture";
+  if (replyGuy <= 5 && f.dramaFollowers > f.casualFollowers * 0.72) return "Reply Guy Singularity";
+  if (m.heat >= 96 && m.agency < 30) return "Algorithm Dependent";
   return undefined;
 }
 
@@ -1000,9 +1013,9 @@ function labelFollower(key: string): string {
 }
 
 function labelProgress(value: number): string {
-  if (value >= 78) return "Strong";
-  if (value >= 58) return "Rising";
-  if (value >= 38) return "Unstable";
+  if (value >= 74) return "Strong";
+  if (value >= 54) return "Rising";
+  if (value >= 34) return "Unstable";
   return "At Risk";
 }
 

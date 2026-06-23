@@ -31,6 +31,7 @@ This is not a party-politics simulator. It does not use real politicians, real p
 - Original SVG/CSS/HTML visuals only.
 - Generated WebAudio only; no copyrighted audio.
 - GitHub Pages workflow included but not deployed/pushed by Codex.
+- v0.3 automated playtests cover three 30-day strategy styles: balanced repair/community, creator/viral pressure, and community organizer.
 
 ## Demo URL
 
@@ -55,6 +56,17 @@ Placeholder.
 ## Scoring Notes
 
 The scoring model rewards balanced reach, trust, agency, belonging, skill credibility, opportunity contacts, community health, relationship repair, and real-world organizing. It penalizes drama, burnout, reality drift, trust collapse, and excessive drama-follower accumulation.
+
+## v0.3 Final Candidate Notes
+
+- Shorter first-run onboarding strip on the main dashboard.
+- Cleaner dashboard hierarchy for graph, feed, meters, warnings, and action cards.
+- Graph legend and improved group-node spacing.
+- Dynamic create-group forecast with audience, risk, health, members, context, and tradeoffs.
+- Stronger viral/context-collapse modals with faster metadata scan.
+- Polished ending screen with explicit local archive note.
+- Small-screen layout pass and mobile screenshot capture.
+- Balance tuning from automated 30-day playtests.
 
 ## v0.2 Improvements
 
