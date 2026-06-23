@@ -301,7 +301,7 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
 
 export function createGroup(state: GameState, group: CreatedGroup): GameState {
   const next = cloneState(state);
-  const tradeoffs = getGroupTradeoffs(group.premise, group.tone, group.rules);
+  const tradeoffs = getGroupTradeoffs(group.premise, group.tone, group.rules, group.firstPost);
   next.createdGroup = {
     ...group,
     members: tradeoffs.members,
@@ -498,6 +498,7 @@ export function getGroupTradeoffs(
   premise: string,
   tone: string,
   rules: string,
+  firstPost = "",
 ): {
   effects: Partial<Metrics>;
   followers: Partial<Followers>;
@@ -565,6 +566,36 @@ export function getGroupTradeoffs(
     health += 4;
     tradeoffs.push("-drama");
   }
+  if (firstPost.includes("evidence")) {
+    effects.trust = (effects.trust ?? 0) + 2;
+    effects.realityDrift = (effects.realityDrift ?? 0) - 3;
+    health += 4;
+    tradeoffs.push("evidence-first start");
+  }
+  if (firstPost.includes("win")) {
+    effects.belonging = (effects.belonging ?? 0) + 3;
+    effects.burnout = (effects.burnout ?? 0) - 2;
+    health += 3;
+    tradeoffs.push("positive ritual");
+  }
+  if (firstPost.includes("meetup")) {
+    effects.agency = (effects.agency ?? 0) + 3;
+    followers.opportunityContacts = (followers.opportunityContacts ?? 0) + 1;
+    members += 2;
+    tradeoffs.push("offline bridge");
+  }
+  if (firstPost.includes("building") || firstPost.includes("tool")) {
+    effects.skillCred = (effects.skillCred ?? 0) + 3;
+    followers.nicheMembers = (followers.nicheMembers ?? 0) + 4;
+    members += 3;
+    tradeoffs.push("maker-friendly start");
+  }
+  if (firstPost.includes("question") || firstPost.includes("snack")) {
+    effects.belonging = (effects.belonging ?? 0) + 2;
+    members += 3;
+    health += 2;
+    tradeoffs.push("low-friction welcome");
+  }
   return {
     effects,
     followers,
@@ -573,7 +604,7 @@ export function getGroupTradeoffs(
     audience: premise.includes("Local") || premise.includes("town") ? "local friends and niche neighbors" : "niche members and curious lurkers",
     context,
     risk: context === "Fraying" ? "context may fray early" : health > 72 ? "stable but slower" : "manageable launch risk",
-    tradeoffs: Array.from(new Set(tradeoffs)).slice(0, 5),
+    tradeoffs: Array.from(new Set(tradeoffs)).slice(0, 6),
   };
 }
 

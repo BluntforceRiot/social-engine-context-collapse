@@ -609,10 +609,19 @@ h1 span {
 }
 
 .graph-node.selected circle,
-.graph-node:hover circle {
+.graph-node:hover circle,
+.graph-node:focus-visible circle {
   transform: scale(1.18);
   stroke-width: 1.1;
   filter: drop-shadow(0 0 6px rgba(117, 208, 231, 0.9));
+}
+
+.graph-node:focus-visible {
+  outline: none;
+}
+
+.graph-node:focus-visible text {
+  fill: var(--gold);
 }
 
 .graph-node text {
@@ -1487,5 +1496,16 @@ h1 span {
     position: static;
     width: auto;
     margin-top: 0.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

@@ -96,10 +96,14 @@ app.addEventListener("mouseover", (event) => {
   const target = (event.target as Element).closest<Element>("[data-node-name]");
   if (!target) return;
   const nextNode = target.getAttribute("data-node-name") ?? "";
-  if (nextNode && nextNode !== hoveredNode) {
-    hoveredNode = nextNode;
-    render();
-  }
+  inspectGraphNode(nextNode);
+});
+
+app.addEventListener("focusin", (event) => {
+  const target = (event.target as Element).closest<Element>("[data-node-name]");
+  if (!target) return;
+  const nextNode = target.getAttribute("data-node-name") ?? "";
+  inspectGraphNode(nextNode, true);
 });
 
 app.addEventListener("change", (event) => {
@@ -181,7 +185,7 @@ function handleCommand(command: string, target: HTMLElement): void {
     const rules = String(data.get("rules") ?? GROUP_RULES[0]);
     const firstPost = String(data.get("firstPost") ?? GROUP_FIRST_POSTS[0]);
     const name = makeGroupName(premise, tone);
-    const forecast = getGroupTradeoffs(premise, tone, rules);
+    const forecast = getGroupTradeoffs(premise, tone, rules, firstPost);
     const group: CreatedGroup = {
       name,
       premise,
@@ -502,7 +506,7 @@ function renderCommunityCard(community: (typeof COMMUNITIES)[number]): string {
 }
 
 function renderCreateGroup(): string {
-  const forecast = getGroupTradeoffs(GROUP_PREMISES[0], GROUP_TONES[0], GROUP_RULES[0]);
+  const forecast = getGroupTradeoffs(GROUP_PREMISES[0], GROUP_TONES[0], GROUP_RULES[0], GROUP_FIRST_POSTS[0]);
   return `
     <main class="page-shell">
       <nav class="topbar">
@@ -812,7 +816,7 @@ function renderGraph(state: GameState): string {
       const affected = state.affectedNodes.includes(node.id) ? "affected" : "";
       const selected = hoveredNode === node.id ? "selected" : "";
       return `
-        <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""} ${affected} ${selected}" data-node-name="${escapeHtml(node.id)}" tabindex="0">
+        <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""} ${affected} ${selected}" data-node-name="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="Inspect ${escapeHtml(node.id)}">
           <circle cx="${node.x}" cy="${node.y}" r="${node.kind === "you" ? 7 : node.kind.includes("group") ? 6 : 5}" />
           <text x="${node.x}" y="${node.y + 10}">${escapeHtml(node.label)}</text>
         </g>
@@ -861,6 +865,19 @@ function renderNodeInspector(state: GameState): string {
   `;
 }
 
+function inspectGraphNode(nextNode: string, restoreFocus = false): void {
+  if (!nextNode || nextNode === hoveredNode) return;
+  hoveredNode = nextNode;
+  render();
+  if (!restoreFocus) return;
+  requestAnimationFrame(() => {
+    const node = Array.from(app.querySelectorAll<SVGElement>("[data-node-name]")).find(
+      (item) => item.getAttribute("data-node-name") === nextNode,
+    );
+    node?.focus({ preventScroll: true });
+  });
+}
+
 function renderGraphLegend(): string {
   return `
     <div class="graph-legend" aria-label="Graph legend">
@@ -889,7 +906,7 @@ function renderForecastContent(
   rules: string,
   firstPost: string,
 ): string {
-  const forecast = getGroupTradeoffs(premise, tone, rules);
+  const forecast = getGroupTradeoffs(premise, tone, rules, firstPost);
   const postSignal = firstPost.includes("evidence")
     ? "evidence-first launch"
     : firstPost.includes("win")
