@@ -8,6 +8,10 @@ import {
   GROUP_RULES,
   GROUP_TONES,
   PLATFORM_NAME,
+  QWEN_FRANKLIN_PROJECT_TITLE,
+  QWEN_FRANKLIN_PROJECT_URL,
+  QWEN_FRANKLIN_PUBLIC_CREDIT,
+  QWEN_FRANKLIN_REPOSITORY_URL,
   RELATIONSHIPS,
   RUN_LENGTH_DAYS,
 } from "./data";
@@ -26,6 +30,7 @@ import {
 import type {
   ActionCard,
   CreatedGroup,
+  DayReport,
   FeedItem,
   GameState,
   MetricKey,
@@ -43,6 +48,7 @@ const app = appRoot;
 let screen: Screen = "title";
 let game: GameState = createInitialState();
 let hoveredNode = "";
+let previewReport: DayReport | undefined;
 const savedSummaryIds = new Set<string>();
 let resetConfirmUntil = 0;
 
@@ -69,6 +75,15 @@ const responseLabels: Record<ResponseKey, string> = {
   friend: "Ask trusted friend",
   tutorial: "Make follow-up tutorial",
   logoff: "Log off",
+  joinSociety: "JOIN THE SOCIETY",
+  shareQwenDemo: "SHARE THE DEMO",
+  inviteQwenGuestPost: "INVITE QWEN FRANKLIN TO GUEST-POST",
+  declineQwen: "DECLINE POLITELY",
+  explainSynthetic: "Explain synthetic characters calmly",
+  moveQwenDms: "Move the conversation to DMs",
+  pinMediaLiteracy: "Pin media-literacy note",
+  letProjectSpeak: "Open the Credited Project",
+  muteQwenThread: "Mute the thread",
 };
 
 window.addEventListener("hashchange", routeFromHash);
@@ -117,17 +132,34 @@ routeFromHash();
 
 function handleCommand(command: string, target: HTMLElement): void {
   if (command === "start") {
+    previewReport = undefined;
     game = createInitialState();
     hoveredNode = "";
     navigate("game");
     return;
   }
   if (command === "title") {
+    previewReport = undefined;
     navigate("title");
     return;
   }
   if (command === "howto") {
     navigate("howto");
+    return;
+  }
+  if (command === "credits") {
+    previewReport = undefined;
+    navigate("credits");
+    return;
+  }
+  if (command === "preview-qwen") {
+    previewReport = createDemoState("qwenInvitation").report;
+    render();
+    return;
+  }
+  if (command === "close-preview") {
+    previewReport = undefined;
+    render();
     return;
   }
   if (command === "scores") {
@@ -212,6 +244,9 @@ function handleCommand(command: string, target: HTMLElement): void {
   }
   if (command === "respond") {
     const response = target.dataset.response as ResponseKey | undefined;
+    if (response === "letProjectSpeak") {
+      openSafeExternal(QWEN_FRANKLIN_PROJECT_URL);
+    }
     game = resolveReport(game, response);
     playCue(response === "lean" ? "viral" : response === "apologize" || response === "private" || response === "friend" ? "repair" : "notification");
     if (game.summary) {
@@ -237,8 +272,11 @@ function handleCommand(command: string, target: HTMLElement): void {
 function routeFromHash(): void {
   const route = window.location.hash.replace(/^#\/?/, "");
   hoveredNode = "";
+  previewReport = undefined;
   if (route === "howto") {
     screen = "howto";
+  } else if (route === "credits") {
+    screen = "credits";
   } else if (route === "scores") {
     screen = "scores";
   } else if (route === "community") {
@@ -265,6 +303,15 @@ function routeFromHash(): void {
     screen = "game";
   } else if (route === "demo-collapse") {
     game = createDemoState("collapse");
+    screen = "game";
+  } else if (route === "demo-qwen-invitation") {
+    game = createDemoState("qwenInvitation");
+    screen = "game";
+  } else if (route === "demo-qwen-community") {
+    game = createDemoState("qwenCommunity");
+    screen = "community";
+  } else if (route === "demo-qwen-collapse") {
+    game = createDemoState("qwenCollapse");
     screen = "game";
   } else if (route === "demo-victory") {
     game = createDemoState("victory");
@@ -294,6 +341,8 @@ function render(): void {
     app.innerHTML = renderTitle();
   } else if (screen === "howto") {
     app.innerHTML = renderHowTo();
+  } else if (screen === "credits") {
+    app.innerHTML = renderCredits();
   } else if (screen === "community") {
     app.innerHTML = renderCommunityChoice();
   } else if (screen === "create") {
@@ -320,9 +369,10 @@ function renderTitle(): string {
           <button class="primary" data-ui="start">Start Run</button>
           <button data-ui="howto">How To Play</button>
           <button data-ui="scores">Run History</button>
+          <button data-ui="credits">About / Credits</button>
           <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"} Audio</button>
         </div>
-        <p class="small-note">v0.3 final candidate. Fictional platform. No real social-network branding. Local browser storage only.</p>
+        <p class="small-note">v0.4.0 Qwen Franklin reference foundation. Fictional platform. No real social-network branding. Local browser storage only.</p>
       </section>
       <aside class="title-preview" aria-label="SignalBarn preview">
         <div class="browser-chrome"><span></span><span></span><span></span><strong>signalbarn.local</strong></div>
@@ -339,6 +389,55 @@ function renderTitle(): string {
           <div class="mini-graph">${renderMiniGraph()}</div>
         </div>
       </aside>
+    </main>
+  `;
+}
+
+function renderCredits(): string {
+  return `
+    <main class="page-shell">
+      <nav class="topbar">
+        <button data-ui="title">Title</button>
+        <button data-ui="howto">How To Play</button>
+        <button data-ui="start" class="primary">Start Run</button>
+      </nav>
+      <section class="manual-panel wide credits-panel">
+        <p class="eyebrow">About / Credits</p>
+        <h2>About The Social Engine</h2>
+        <div class="credits-grid">
+          ${howCard("Project thesis", "A card-and-graph strategy sim about how online communities create independence, opportunity, confusion, and context collapse.")}
+          ${howCard("Independence Engines", "Built for the Week 2 theme by treating useful communities, repair rituals, and small creator networks as tiny engines of independence.")}
+          ${howCard("Static browser artifact", "The game runs as a static Vite/TypeScript browser demo with no backend, no login, no analytics, and local browser storage only.")}
+          ${howCard("Fictional platform", "SignalBarn is fictional. It does not use real social-network branding, logos, UI clones, or external platform services.")}
+          ${howCard("Tools and AI usage", "TypeScript, Vite, Playwright, generated WebAudio cues, original SVG/CSS interface work, ChatGPT for design support, and Codex for implementation.")}
+        </div>
+
+        <article class="guest-credit-card">
+          ${renderGuestAvatar("large")}
+          <div>
+            <span class="credit-kicker">${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span>
+            <h3>GUEST SIGNAL FROM THE COMPETITION</h3>
+            <p>Myles's Founding Father A.I. put a real language model inside an 8-bit historical interface. That project pushed The Social Engine to think harder about what happens when intelligence lives inside the artifact, not only in the workshop that built it.</p>
+            <p>Qwen Franklin appears here as a credited guest signal inside SignalBarn's social graph, where even a helpful AI founder can trigger context collapse.</p>
+            <p class="small-note">${escapeHtml(QWEN_FRANKLIN_PUBLIC_CREDIT)}</p>
+            ${renderGuestLinks()}
+            <button data-ui="preview-qwen">Preview Qwen Franklin Event</button>
+          </div>
+        </article>
+
+        <section class="build-attribution">
+          <p class="eyebrow">Build And Attribution</p>
+          <h3>Original implementation, visible credit.</h3>
+          <div class="credits-grid">
+            ${howCard("Original implementation", "The Social Engine event logic, UI integration, writing, and Qwen guest avatar are original to this game.")}
+            ${howCard("No copied files", "No Founding Father A.I. code, artwork, generated chat logs, private keys, deployment secrets, logos, or non-public materials are copied.")}
+            ${howCard("Third-party notices", "THIRD_PARTY_NOTICES.md documents the competitor reference, the public source path listed by the article, and the no-direct-reuse boundary.")}
+            ${howCard("Current build", "v0.4.0 Qwen reference foundation. It is ready to preserve during the larger v0.4 victory-system and balance rebuild.")}
+            ${howCard("Repo / demo", "Repo and demo URLs are listed in the README/submission notes when deployment is approved. Codex did not push or deploy this build.")}
+          </div>
+        </section>
+      </section>
+      ${previewReport ? renderPreviewReport(previewReport) : ""}
     </main>
   `;
 }
@@ -465,6 +564,9 @@ function renderActionCard(action: ActionCard): string {
 }
 
 function renderCommunityChoice(): string {
+  const visibleCommunities = COMMUNITIES.filter(
+    (community) => !community.unlock || game.qwenSocietyUnlocked || game.joinedCommunityIds.includes(community.id),
+  );
   return `
     <main class="page-shell">
       <nav class="topbar">
@@ -474,9 +576,9 @@ function renderCommunityChoice(): string {
       <section class="manual-panel wide">
         <p class="eyebrow">Community Chooser</p>
         <h2>Join a room with gifts, baggage, and at least one recurring argument.</h2>
-        <p class="body-copy">Joining gives instant members and content fuel. It also imports rivalries, tone, first-event risk, and whatever Local Admin Carol has recently decided.</p>
+        <p class="body-copy">Joining gives instant members and content fuel. It also imports rivalries, tone, first-event risk, and whatever Local Admin Carol has recently decided. Rare guest rooms unlock through run events.</p>
         <div class="community-grid">
-          ${COMMUNITIES.map(renderCommunityCard).join("")}
+          ${visibleCommunities.map(renderCommunityCard).join("")}
         </div>
       </section>
     </main>
@@ -484,23 +586,36 @@ function renderCommunityChoice(): string {
 }
 
 function renderCommunityCard(community: (typeof COMMUNITIES)[number]): string {
-  const likelyAudience = community.tone === "healthy" ? "niche learners, useful lurkers" : "curious weirdos, relatives, drama watchers";
-  const firstEvent = community.tone === "healthy" ? "mentor advice or useful thread" : "rival quote-share or recruitment pressure";
+  const joined = game.joinedCommunityIds.includes(community.id);
+  const isGuest = community.avatar === "qwen-franklin";
+  const likelyAudience = isGuest
+    ? "history nerds, AI builders, civic tinkerers"
+    : community.tone === "healthy"
+      ? "niche learners, useful lurkers"
+      : "curious weirdos, relatives, drama watchers";
+  const shortDescription = isGuest
+    ? "A credited guest room where history nerds and AI builders test civic imagination without losing the label."
+    : community.hook;
   return `
-    <article class="community-card ${community.tone}">
+    <article class="community-card ${community.tone} ${community.avatar ? "guest-community" : ""}">
       <div>
-        <span>${community.tone === "healthy" ? "Useful niche" : "Risky weirdness"}</span>
+        ${community.avatar ? renderGuestAvatar("card") : ""}
+        <span>${escapeHtml(community.typeLabel ?? (community.tone === "healthy" ? "Useful niche" : "Risky weirdness"))}</span>
         <h3>${escapeHtml(community.name)}</h3>
-        <p>${escapeHtml(community.hook)}</p>
+        <p>${escapeHtml(shortDescription)}</p>
       </div>
       <dl>
         <dt>Instant upside</dt><dd>${escapeHtml(community.upside)}</dd>
         <dt>Baggage / rivals</dt><dd>${escapeHtml(community.rivals.join(", "))}</dd>
         <dt>Known risk</dt><dd>${escapeHtml(community.risk)}</dd>
         <dt>Likely audience</dt><dd>${escapeHtml(likelyAudience)}</dd>
-        <dt>First event likelihood</dt><dd>${escapeHtml(firstEvent)}</dd>
       </dl>
-      <button class="primary" data-ui="join-community" data-community-id="${community.id}">Join</button>
+      ${
+        isGuest
+          ? `<details class="community-details"><summary>More Details</summary><p>${escapeHtml(community.hook)} ${escapeHtml(QWEN_FRANKLIN_PUBLIC_CREDIT)}</p></details>`
+          : ""
+      }
+      <button class="primary" data-ui="join-community" data-community-id="${community.id}" ${joined ? "disabled" : ""}>${joined ? "JOINED" : "Join"}</button>
     </article>
   `;
 }
@@ -666,7 +781,8 @@ function renderFeed(state: GameState): string {
 
 function renderFeedItem(item: FeedItem): string {
   return `
-    <article class="feed-item ${item.kind} ${item.context.toLowerCase()}">
+    <article class="feed-item ${item.kind} ${item.context.toLowerCase()} ${item.guestAvatar ? "has-avatar" : ""}">
+      ${item.guestAvatar ? renderGuestAvatar("feed") : ""}
       <div class="feed-topline">
         <span>Day ${item.day}</span>
         <b>${escapeHtml(item.context)}</b>
@@ -750,6 +866,11 @@ function renderReport(report: GameState["report"]): string {
   return `
     <div class="modal-backdrop">
       <article class="event-modal ${report.kind}">
+        ${
+          report.guestAvatar
+            ? `<div class="guest-modal-head">${renderGuestAvatar("modal")}<div><span>${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span><b>${escapeHtml(report.credit ?? "Guest Signal")}</b>${report.showGuestLinks ? renderGuestLinks("compact") : ""}</div></div>`
+            : ""
+        }
         <p class="eyebrow">${labelReportKind(report.kind)}</p>
         <h2>${escapeHtml(report.title)}</h2>
         <p>${escapeHtml(report.body)}</p>
@@ -768,7 +889,31 @@ function renderReport(report: GameState["report"]): string {
           ${report.effectsText.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
           ${(report.followerBreakdown ?? []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
         </div>
+        ${report.mechanicalNote ? `<p class="modal-footnote">${escapeHtml(report.mechanicalNote)}</p>` : ""}
         ${responseButtons}
+      </article>
+    </div>
+  `;
+}
+
+function renderPreviewReport(report: DayReport): string {
+  const options = report.responseOptions ?? [];
+  return `
+    <div class="modal-backdrop" data-preview="qwen">
+      <article class="event-modal ${report.kind} preview-modal">
+        <div class="preview-ribbon">Non-scoring preview</div>
+        <div class="guest-modal-head">${renderGuestAvatar("modal")}<div><span>${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span><b>${escapeHtml(report.credit ?? "Guest Signal")}</b>${renderGuestLinks("compact")}</div></div>
+        <p class="eyebrow">Guest Signal Preview</p>
+        <h2>${escapeHtml(report.title)}</h2>
+        <p>${escapeHtml(report.body)}</p>
+        <div class="effects-list">
+          ${report.effectsText.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </div>
+        <p class="modal-footnote">Preview only. These choices are shown for judges and do not modify the current run.</p>
+        <div class="response-grid expanded preview-choices">
+          ${options.map((option) => `<button type="button" disabled>${escapeHtml(responseLabels[option])}</button>`).join("")}
+        </div>
+        <button class="primary" data-ui="close-preview">Close Preview</button>
       </article>
     </div>
   `;
@@ -777,11 +922,33 @@ function renderReport(report: GameState["report"]): string {
 function renderGraph(state: GameState): string {
   const people = RELATIONSHIPS.slice(0, 9);
   const groupNodes = [
-    ...state.joinedCommunityIds.map((id) => COMMUNITIES.find((community) => community.id === id)?.name),
-    state.createdGroup?.name,
-  ].filter(Boolean) as string[];
+    ...state.joinedCommunityIds.map((id) => {
+      const community = COMMUNITIES.find((item) => item.id === id);
+      return community
+        ? {
+            id: community.name,
+            label: community.name,
+            avatar: community.avatar,
+            tone: community.tone,
+          }
+        : undefined;
+    }),
+    state.createdGroup
+      ? {
+          id: state.createdGroup.name,
+          label: state.createdGroup.name,
+          avatar: undefined,
+          tone: "healthy" as const,
+        }
+      : undefined,
+  ].filter(Boolean) as Array<{
+    id: string;
+    label: string;
+    avatar?: "qwen-franklin";
+    tone: "healthy" | "risky";
+  }>;
   const nodes = [
-    { id: "you", label: "You", x: 50, y: 50, kind: "you", score: 100 },
+    { id: "you", label: "You", x: 50, y: 50, kind: "you", score: 100, avatar: undefined },
     ...people.map((name, index) => {
       const angle = (Math.PI * 2 * index) / people.length - Math.PI / 2;
       return {
@@ -791,15 +958,17 @@ function renderGraph(state: GameState): string {
         y: 50 + Math.sin(angle) * 34,
         kind: nodeKind(name),
         score: state.relationships[name],
+        avatar: undefined,
       };
     }),
-    ...groupNodes.slice(0, 4).map((name, index) => ({
-      id: name,
-      label: name,
+    ...groupNodes.slice(0, 4).map((node, index) => ({
+      id: node.id,
+      label: node.label,
       x: 18 + index * 21,
       y: index % 2 === 0 ? 86 : 91,
-      kind: name.includes("Bigfoot") || name.includes("Saucer") || name.includes("Flat") ? "risky-group" : "group",
-      score: name === state.createdGroup?.name ? state.createdGroup.health : 70,
+      kind: node.avatar ? "qwen-group" : node.tone === "risky" ? "risky-group" : "group",
+      score: node.id === state.createdGroup?.name ? state.createdGroup.health : 70,
+      avatar: node.avatar,
     })),
   ];
   const links = nodes
@@ -815,9 +984,13 @@ function renderGraph(state: GameState): string {
     .map((node) => {
       const affected = state.affectedNodes.includes(node.id) ? "affected" : "";
       const selected = hoveredNode === node.id ? "selected" : "";
+      const radius = node.kind === "you" ? 7 : node.kind.includes("group") ? 6 : 5;
+      const nodeShape = node.avatar
+        ? `<image href="./assets/qwen-franklin-avatar.svg" x="${node.x - radius}" y="${node.y - radius}" width="${radius * 2}" height="${radius * 2}" />`
+        : `<circle cx="${node.x}" cy="${node.y}" r="${radius}" />`;
       return `
         <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""} ${affected} ${selected}" data-node-name="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="Inspect ${escapeHtml(node.id)}">
-          <circle cx="${node.x}" cy="${node.y}" r="${node.kind === "you" ? 7 : node.kind.includes("group") ? 6 : 5}" />
+          ${nodeShape}
           <text x="${node.x}" y="${node.y + 10}">${escapeHtml(node.label)}</text>
         </g>
       `;
@@ -989,6 +1162,53 @@ function howCard(title: string, body: string): string {
   `;
 }
 
+function renderGuestAvatar(size: "large" | "modal" | "card" | "feed"): string {
+  return `
+    <img
+      class="guest-avatar ${size}"
+      src="./assets/qwen-franklin-avatar.svg"
+      alt="Fictional Qwen Franklin guest avatar"
+      loading="lazy"
+    />
+  `;
+}
+
+function renderGuestLinks(mode: "full" | "compact" = "full"): string {
+  const projectLink = renderExternalLink("Visit Founding Father A.I.", QWEN_FRANKLIN_PROJECT_URL);
+  const sourceLink = renderExternalLink("View Source", QWEN_FRANKLIN_REPOSITORY_URL);
+  const links = [projectLink, sourceLink].filter(Boolean).join("");
+  if (!links) return "";
+  return `
+    <div class="guest-links ${mode}">
+      ${links}
+    </div>
+  `;
+}
+
+function renderExternalLink(label: string, href: string): string {
+  const safeHref = safeExternalHref(href);
+  if (!safeHref) {
+    return "";
+  }
+  return `<a class="button-link" href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`;
+}
+
+function openSafeExternal(href: string): void {
+  const safeHref = safeExternalHref(href);
+  if (!safeHref) return;
+  window.open(safeHref, "_blank", "noopener,noreferrer");
+}
+
+function safeExternalHref(href: string): string {
+  if (!href) return "";
+  try {
+    const url = new URL(href);
+    return url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 function selectField(name: string, label: string, values: string[]): string {
   return `
     <label>
@@ -1112,6 +1332,7 @@ function nodeBlurb(name: string): string {
     "Golf Friend Rick": "Useful hobby connection with mysterious posture language.",
     "Linux Forum Mentor": "Calm expert energy. Strong defense against feed rot.",
     "Small-Town Neighbor": "Local context node. Knows which posts will travel offline.",
+    "Founders & Future Society": "A credited guest room for history nerds, AI builders, and civic tinkering.",
   };
   return blurbs[name] ?? "A visible part of your current independence engine.";
 }

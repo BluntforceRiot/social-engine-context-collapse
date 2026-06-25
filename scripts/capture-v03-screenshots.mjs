@@ -86,6 +86,7 @@ const page = await context.newPage();
 for (const [route, fileName] of routes) {
   const url = `${baseUrl.replace(/\/$/, "/")}${route}`;
   await page.goto(url, { waitUntil: "networkidle" });
+  await assertSocialEngine(page, url);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(outputDir, fileName), fullPage: false });
   console.log(`Captured ${fileName}`);
@@ -93,8 +94,16 @@ for (const [route, fileName] of routes) {
 
 await page.setViewportSize({ width: 390, height: 844 });
 await page.goto(`${baseUrl.replace(/\/$/, "/")}#/demo-main`, { waitUntil: "networkidle" });
+await assertSocialEngine(page, `${baseUrl.replace(/\/$/, "/")}#/demo-main`);
 await page.waitForTimeout(500);
 await page.screenshot({ path: path.join(outputDir, "social-engine-mobile-v03.png"), fullPage: true });
 console.log("Captured social-engine-mobile-v03.png");
 
 await browser.close();
+
+async function assertSocialEngine(page, url) {
+  const title = await page.title();
+  if (!title.includes("The Social Engine")) {
+    throw new Error(`Expected The Social Engine at ${url}, but got page title "${title}". Set SOCIAL_ENGINE_BASE_URL to the correct preview port.`);
+  }
+}

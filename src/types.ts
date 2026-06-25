@@ -4,6 +4,7 @@ export type Screen =
   | "game"
   | "community"
   | "create"
+  | "credits"
   | "scores"
   | "end";
 
@@ -36,7 +37,16 @@ export type ResponseKey =
   | "apologize"
   | "friend"
   | "tutorial"
-  | "logoff";
+  | "logoff"
+  | "joinSociety"
+  | "shareQwenDemo"
+  | "inviteQwenGuestPost"
+  | "declineQwen"
+  | "explainSynthetic"
+  | "moveQwenDms"
+  | "pinMediaLiteracy"
+  | "letProjectSpeak"
+  | "muteQwenThread";
 
 export type RelationshipKey =
   | "Old Friend Nate"
@@ -89,6 +99,9 @@ export interface Community {
   id: string;
   name: string;
   tone: "healthy" | "risky";
+  typeLabel?: string;
+  avatar?: "qwen-franklin";
+  unlock?: "qwen-franklin";
   hook: string;
   upside: string;
   risk: string;
@@ -131,6 +144,10 @@ export interface DayReport {
   affectedNodes?: string[];
   responseOptions?: ResponseKey[];
   responseRequired?: boolean;
+  guestAvatar?: "qwen-franklin";
+  credit?: string;
+  showGuestLinks?: boolean;
+  mechanicalNote?: string;
 }
 
 export interface FeedComment {
@@ -151,6 +168,7 @@ export interface FeedItem {
   comments: number;
   shares: number;
   commentSamples: FeedComment[];
+  guestAvatar?: "qwen-franklin";
 }
 
 export interface RunSummary {
@@ -184,6 +202,11 @@ export interface GameState {
   affectedNodes: string[];
   biggestViralEvent: string;
   worstContextCollapse: string;
+  qwenInvitationSeen: boolean;
+  qwenSocietyUnlocked: boolean;
+  qwenGuestPosted: boolean;
+  qwenDemoShared: boolean;
+  qwenAuntCollapseSeen: boolean;
   eventsHosted: number;
   repairsMade: number;
   scorePreview: number;

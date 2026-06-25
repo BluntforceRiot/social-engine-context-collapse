@@ -78,6 +78,7 @@ for (const strategy of strategies) {
   });
   const page = await context.newPage();
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  await assertSocialEngine(page, baseUrl);
   await page.locator('[data-ui="start"]').first().click();
 
   const log = [];
@@ -156,13 +157,26 @@ async function playAction(page, actionId, log) {
   await action.click();
 
   if (await page.locator(".community-card").count()) {
-    await page.locator(".community-card .primary").first().click();
-    log.push("Joined first available community.");
+    const joinButton = page.locator('.community-card .primary:not(:disabled)').first();
+    if (await joinButton.count()) {
+      await joinButton.click();
+      log.push("Joined first available community.");
+    } else {
+      await page.goto(`${baseUrl.replace(/\/$/, "/")}#/game`, { waitUntil: "networkidle" });
+      log.push("Skipped community join; available rooms were already joined.");
+    }
   } else if (await page.locator("#create-group-form").count()) {
     await page.locator('[data-ui="create-group"]').click();
     log.push("Created default forecast group.");
   } else {
     log.push(`Played ${actionId}.`);
+  }
+}
+
+async function assertSocialEngine(page, url) {
+  const title = await page.title();
+  if (!title.includes("The Social Engine")) {
+    throw new Error(`Expected The Social Engine at ${url}, but got page title "${title}". Set SOCIAL_ENGINE_BASE_URL to the correct preview port.`);
   }
 }
 
@@ -177,6 +191,14 @@ async function resolveReport(page, preferredResponses, log) {
       log.push(`Responded with ${response}.`);
       return;
     }
+  }
+
+  const fallbackResponse = page.locator('[data-ui="respond"]').first();
+  if (await fallbackResponse.count()) {
+    const response = await fallbackResponse.getAttribute("data-response");
+    await fallbackResponse.click();
+    log.push(`Responded with fallback ${response ?? "unknown"}.`);
+    return;
   }
 
   const continueButton = page.locator('[data-ui="continue-report"]').first();

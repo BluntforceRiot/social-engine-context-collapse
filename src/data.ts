@@ -3,6 +3,14 @@ import type { ActionCard, Community, FeedEvent, RelationshipKey } from "./types"
 export const PLATFORM_NAME = "SignalBarn";
 export const RUN_LENGTH_DAYS = 30;
 
+export const QWEN_FRANKLIN_PROJECT_TITLE = "Founding Father A.I. / Qwen Franklin";
+export const QWEN_FRANKLIN_CREATOR = "Myles";
+export const QWEN_FRANKLIN_PUBLIC_CREDIT =
+  "Qwen Franklin is a credited competitor reference to Myles's Founding Father A.I. / Qwen Franklin project.";
+export const QWEN_FRANKLIN_GUEST_BANNER = "GUEST SIGNAL FROM MYLES'S FOUNDING FATHER A.I.";
+export const QWEN_FRANKLIN_PROJECT_URL = "https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in";
+export const QWEN_FRANKLIN_REPOSITORY_URL = "";
+
 export const RELATIONSHIPS: RelationshipKey[] = [
   "Old Friend Nate",
   "Coworker Maya",
@@ -391,6 +399,20 @@ export const COMMUNITIES: Community[] = [
     rivals: ["No-Code Purity Club"],
     joinEffects: { agency: 8, skillCred: 7, belonging: 4 },
     joinFollowers: { nicheMembers: 18, opportunityContacts: 2 },
+  },
+  {
+    id: "founders-future-society",
+    name: "Founders & Future Society",
+    tone: "healthy",
+    typeLabel: "History / AI / Civic Tinkering",
+    avatar: "qwen-franklin",
+    unlock: "qwen-franklin",
+    hook: "History nerds, AI builders, civic experimenters, and one founding father with suspiciously modern response latency.",
+    upside: "+knowledge, +agency, +useful niche members",
+    risk: "Audience confusion, context collapse, relatives treating historical AI as literal evidence, and excessive arguments about whether Franklin would have used Linux.",
+    rivals: ["Chronology Correction Committee", "Bifocal Standards Working Group"],
+    joinEffects: { skillCred: 8, agency: 5, belonging: 5, heat: 4, drama: 2 },
+    joinFollowers: { nicheMembers: 20, opportunityContacts: 1 },
   },
   {
     id: "golf-swing-lab",

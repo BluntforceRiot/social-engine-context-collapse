@@ -3,6 +3,7 @@ import {
   COMMUNITIES,
   FEED_EVENTS,
   PLATFORM_NAME,
+  QWEN_FRANKLIN_GUEST_BANNER,
   RELATIONSHIPS,
   RUN_LENGTH_DAYS,
 } from "./data";
@@ -124,6 +125,69 @@ const responseEffects: Record<
     affectedNodes: ["Old Friend Nate", "Small-Town Neighbor"],
     feedText: "No response becomes the response. The grass renders at full resolution.",
   },
+  joinSociety: {
+    title: "Joined the Founders & Future Society",
+    effects: { skillCred: 8, agency: 5, belonging: 5, reach: 85, heat: 5, drama: 2 },
+    followers: { nicheMembers: 20, opportunityContacts: 1 },
+    affectedNodes: ["Linux Forum Mentor", "Aunt JPEG", "Uncle Signal"],
+    feedText: "The new society is small, useful, and already drafting a constitution for the group chat.",
+  },
+  shareQwenDemo: {
+    title: "Shared the Qwen Franklin Demo",
+    effects: { reach: 220, skillCred: 5, heat: 8, drama: 4, realityDrift: 3 },
+    followers: { casualFollowers: 20, nicheMembers: 10, dramaFollowers: 5 },
+    affectedNodes: ["Linux Forum Mentor", "Coworker Maya", "Aunt JPEG"],
+    feedText: "The demo finds builders, history nerds, and one comment thread that badly needs a caption.",
+  },
+  inviteQwenGuestPost: {
+    title: "Invited Qwen Franklin to Guest-Post",
+    effects: { skillCred: 9, trust: 4, agency: 4, reach: 120, heat: 5, drama: 2 },
+    followers: { nicheMembers: 14, opportunityContacts: 1 },
+    affectedNodes: ["Linux Forum Mentor", "Local Admin Carol", "Aunt JPEG"],
+    feedText: "A careful educational post lands with charm, citations, and only moderate electricity discourse.",
+  },
+  declineQwen: {
+    title: "Declined Politely",
+    effects: { trust: 4, belonging: 2, heat: -2 },
+    followers: { closeFriends: 1 },
+    affectedNodes: ["Old Friend Nate", "Concerned Relative"],
+    feedText: "You keep the crossover in the drafts and earn one quiet nod from the people nearest you.",
+  },
+  explainSynthetic: {
+    title: "Explained Synthetic Characters Calmly",
+    effects: { trust: 8, drama: -10, realityDrift: -9, heat: -5, burnout: 2 },
+    followers: { dramaFollowers: -6, realityRelatives: -2 },
+    affectedNodes: ["Aunt JPEG", "Uncle Signal", "Concerned Relative"],
+    feedText: "A plain explanation lands: fictional guest account, real project, no time machine required.",
+  },
+  moveQwenDms: {
+    title: "Moved the Franklin Confusion to DMs",
+    effects: { trust: 9, drama: -8, heat: -8, burnout: 1, reach: -45 },
+    followers: { closeFriends: 1, dramaFollowers: -4 },
+    affectedNodes: ["Aunt JPEG", "Uncle Signal", "Concerned Relative"],
+    feedText: "The public thread loses its audience while the family channel gains enough oxygen to think.",
+  },
+  pinMediaLiteracy: {
+    title: "Pinned a Media-Literacy Explanation",
+    effects: { trust: 7, skillCred: 7, drama: -7, realityDrift: -8, agency: 3, heat: -3 },
+    followers: { nicheMembers: 8, dramaFollowers: -3 },
+    affectedNodes: ["Linux Forum Mentor", "Aunt JPEG", "Coworker Maya"],
+    feedText: "The pinned note separates character, creator, project, and proof before the thread invents a fourth branch of government.",
+  },
+  letProjectSpeak: {
+    title: "Opened the Credited Project",
+    effects: { reach: 80, skillCred: 4, drama: -4, heat: -2, agency: 2 },
+    followers: { nicheMembers: 6 },
+    affectedNodes: ["Linux Forum Mentor", "Aunt JPEG"],
+    feedText: "You open the credited article and let the project context do some careful explaining.",
+  },
+  muteQwenThread: {
+    title: "Muted the Franklin Thread",
+    effects: { burnout: -12, drama: -8, heat: -8, reach: -55, trust: 1 },
+    followers: { dramaFollowers: -8 },
+    affectedNodes: ["Cousin Reply Guy", "Aunt JPEG"],
+    feedText: "The argument continues somewhere quieter. Franklin is spared quote-posting for one more day.",
+  },
 };
 
 export function createInitialState(): GameState {
@@ -179,6 +243,11 @@ export function createInitialState(): GameState {
     affectedNodes: [],
     biggestViralEvent: "No viral event yet.",
     worstContextCollapse: "No context collapse yet.",
+    qwenInvitationSeen: false,
+    qwenSocietyUnlocked: false,
+    qwenGuestPosted: false,
+    qwenDemoShared: false,
+    qwenAuntCollapseSeen: false,
     eventsHosted: 0,
     repairsMade: 0,
     scorePreview: 0,
@@ -250,9 +319,13 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
   if (!community) {
     return state;
   }
+  if (state.joinedCommunityIds.includes(community.id)) {
+    return state;
+  }
   const next = cloneState(state);
-  if (!next.joinedCommunityIds.includes(community.id)) {
-    next.joinedCommunityIds.push(community.id);
+  next.joinedCommunityIds.push(community.id);
+  if (community.id === "founders-future-society") {
+    next.qwenSocietyUnlocked = true;
   }
   next.lastActionId = "join-community";
   next.lastActionTags = ["community", community.tone];
@@ -286,6 +359,7 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
     reactions: 18 + Math.round(next.followers.nicheMembers / 8),
     comments: community.tone === "healthy" ? 5 : 12,
     shares: community.tone === "healthy" ? 1 : 5,
+    guestAvatar: community.avatar,
     commentSamples: [
       {
         author: community.tone === "healthy" ? "Linux Forum Mentor" : "Aunt JPEG",
@@ -369,6 +443,28 @@ export function resolveReport(state: GameState, response?: ResponseKey): GameSta
         },
       ],
     });
+    if (response === "joinSociety") {
+      next.qwenSocietyUnlocked = true;
+      if (!next.joinedCommunityIds.includes("founders-future-society")) {
+        next.joinedCommunityIds.push("founders-future-society");
+      }
+      addQwenSocietyFeedCard(next, "Joined the Founders & Future Society");
+    }
+    if (response === "inviteQwenGuestPost") {
+      next.qwenGuestPosted = true;
+      addQwenGuestPostFeedCard(next);
+      if (Math.random() < 0.28) {
+        applyEffects(next, { reach: 210, skillCred: 5, heat: 4 });
+        applyFollowers(next, { nicheMembers: 10, opportunityContacts: 1 });
+        next.biggestViralEvent = "Qwen Franklin's guest post found the history-and-AI people.";
+      }
+    }
+    if (response === "shareQwenDemo") {
+      next.qwenDemoShared = true;
+    }
+    if (response === "shareQwenDemo" || response === "letProjectSpeak") {
+      addQwenSocietyFeedCard(next, response === "shareQwenDemo" ? "Shared the Qwen Franklin demo" : "Opened the credited Qwen Franklin article");
+    }
     if (response === "clarify" || response === "private" || response === "apologize" || response === "friend") {
       next.repairsMade += 1;
     }
@@ -609,7 +705,18 @@ export function getGroupTradeoffs(
 }
 
 export function createDemoState(
-  kind: "main" | "viral" | "collapse" | "victory" | "failure" | "paths" | "graphHover" | "feed",
+  kind:
+    | "main"
+    | "viral"
+    | "collapse"
+    | "victory"
+    | "failure"
+    | "paths"
+    | "graphHover"
+    | "feed"
+    | "qwenInvitation"
+    | "qwenCommunity"
+    | "qwenCollapse",
 ): GameState {
   const state = createInitialState();
   state.joinedCommunityIds = ["linux-forum", "bigfoot-field"];
@@ -733,6 +840,53 @@ export function createDemoState(
     state.relationships["Coworker Maya"] = 70;
   }
 
+  if (kind === "qwenInvitation") {
+    state.day = 9;
+    state.qwenInvitationSeen = true;
+    state.affectedNodes = ["Linux Forum Mentor", "Aunt JPEG", "Uncle Signal", "Cousin Reply Guy"];
+    state.report = buildQwenInvitationReport(state.affectedNodes);
+  }
+
+  if (kind === "qwenCommunity") {
+    state.day = 10;
+    state.qwenInvitationSeen = true;
+    state.qwenSocietyUnlocked = true;
+    state.qwenDemoShared = true;
+    state.joinedCommunityIds = ["linux-forum", "founders-future-society"];
+    state.affectedNodes = ["Founders & Future Society", "Linux Forum Mentor", "Aunt JPEG"];
+    addQwenSocietyFeedCard(state, "Joined the Founders & Future Society");
+  }
+
+  if (kind === "qwenCollapse") {
+    state.day = 13;
+    state.qwenInvitationSeen = true;
+    state.qwenSocietyUnlocked = true;
+    state.qwenGuestPosted = true;
+    state.qwenDemoShared = true;
+    state.qwenAuntCollapseSeen = true;
+    state.joinedCommunityIds = ["linux-forum", "founders-future-society"];
+    state.affectedNodes = ["Aunt JPEG", "Uncle Signal", "Cousin Reply Guy", "Linux Forum Mentor"];
+    applyEffects(state, { drama: 24, heat: 14, realityDrift: 14, trust: -8 });
+    state.report = {
+      kind: "collapse",
+      title: "AUNT JPEG THINKS QWEN FRANKLIN IS REAL",
+      body: "Aunt JPEG insists the account proves Benjamin Franklin is alive. Uncle Signal believes he is transmitting from 1776. Cousin Reply Guy has started an electricity argument under the demo link.",
+      effectsText: ["-4 Trust", "+12 Drama", "+8 Algorithm Heat", "+10 Reality Drift"],
+      source: "media-literacy context collapse",
+      audience: "family thread, builders, demo lurkers",
+      context: "Escaped",
+      benefited: "nobody except Cousin Reply Guy's typing stamina",
+      annoyed: "Aunt JPEG, Uncle Signal, and anyone who knows what synthetic means",
+      affectedNodes: state.affectedNodes,
+      responseOptions: ["explainSynthetic", "moveQwenDms", "pinMediaLiteracy", "letProjectSpeak", "muteQwenThread"],
+      responseRequired: true,
+      guestAvatar: "qwen-franklin",
+      credit: QWEN_FRANKLIN_GUEST_BANNER,
+      showGuestLinks: true,
+      mechanicalNote: "Opening the credited project is a response choice; the fallout remains a SignalBarn media-literacy problem.",
+    };
+  }
+
   if (kind === "victory") {
     applyEffects(state, { trust: 16, agency: 24, belonging: 22, skillCred: 24, drama: -10, heat: -8 });
     state.day = RUN_LENGTH_DAYS;
@@ -763,6 +917,16 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
     state.metrics.drama * 0.08 +
     (state.joinedCommunityIds.length + (state.createdGroup ? 1 : 0)) * 2;
   const roll = Math.random() * 100;
+
+  const qwenInvitation = maybeBuildQwenInvitationReport(state, action);
+  if (qwenInvitation) {
+    return qwenInvitation;
+  }
+
+  const qwenCollapse = maybeBuildQwenAuntCollapseReport(state, action);
+  if (qwenCollapse) {
+    return qwenCollapse;
+  }
 
   if (roll < Math.min(34, viralChance)) {
     const viralGain = 420 + Math.round(state.metrics.heat * 6 + action.viralPotential * 18);
@@ -835,6 +999,99 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
   };
 }
 
+function maybeBuildQwenInvitationReport(state: GameState, action: ActionCard): DayReport | undefined {
+  if (state.qwenInvitationSeen || state.day < 8 || state.day > 14) {
+    return undefined;
+  }
+  const hasMatchingInterest = hasQwenInterestSignal(state, action);
+  const forcedCatchup = state.day === 14;
+  const chance = hasMatchingInterest ? 100 : forcedCatchup ? 34 : 18;
+  if (Math.random() * 100 >= chance) {
+    return undefined;
+  }
+
+  state.qwenInvitationSeen = true;
+  state.affectedNodes = Array.from(
+    new Set([...state.affectedNodes, "Linux Forum Mentor", "Aunt JPEG", "Uncle Signal", "Cousin Reply Guy"]),
+  );
+  return buildQwenInvitationReport(state.affectedNodes);
+}
+
+function hasQwenInterestSignal(state: GameState, action: ActionCard): boolean {
+  const interestTags = ["knowledge", "tutorial", "learning", "creator", "project", "retro", "linux", "community", "builder"];
+  const interestRooms = ["linux-forum", "coding-circle", "vintage-computer", "local-events", "founders-future-society"];
+  return action.tags.some((tag) => interestTags.includes(tag)) || state.joinedCommunityIds.some((id) => interestRooms.includes(id));
+}
+
+function buildQwenInvitationReport(affectedNodes: string[]): DayReport {
+  return {
+    kind: "feed",
+    title: "QWEN FRANKLIN HAS SENT YOU AN INVITATION",
+    body: "An unusually articulate founding father has invited you to the Founders & Future Society, a group for history nerds, AI builders, civic experiments, and people with extremely specific opinions about bifocals.",
+    effectsText: ["Rare Guest Signal", "Knowledge Opportunity", "Context Risk"],
+    source: "friendly competition crossover",
+    audience: "history nerds, AI builders, civic tinkerers, relatives with questions",
+    context: "Fraying",
+    benefited: "Knowledge path and niche builders",
+    annoyed: "anyone allergic to media-literacy labels",
+    affectedNodes,
+    responseOptions: ["joinSociety", "shareQwenDemo", "inviteQwenGuestPost", "declineQwen"],
+    responseRequired: true,
+    guestAvatar: "qwen-franklin",
+    credit: QWEN_FRANKLIN_GUEST_BANNER,
+    showGuestLinks: true,
+    mechanicalNote: "Optional guest event. Modest rewards, context risk, and no victory requirement.",
+  };
+}
+
+function maybeBuildQwenAuntCollapseReport(state: GameState, action: ActionCard): DayReport | undefined {
+  if (
+    state.qwenAuntCollapseSeen ||
+    state.day <= 8 ||
+    (!state.qwenSocietyUnlocked && !state.qwenGuestPosted && !state.qwenDemoShared)
+  ) {
+    return undefined;
+  }
+  const riskTags = ["context", "family", "reality", "viral", "weird"];
+  const chance =
+    (action.tags.some((tag) => riskTags.includes(tag)) ? 12 : 4) +
+    (state.metrics.heat > 55 ? 4 : 0) +
+    (state.metrics.realityDrift > 35 ? 4 : 0);
+  if (Math.random() * 100 >= Math.min(24, chance)) {
+    return undefined;
+  }
+
+  state.qwenAuntCollapseSeen = true;
+  state.worstContextCollapse = "Aunt JPEG thought Qwen Franklin was real.";
+  applyEffects(state, { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 });
+  applyFollowers(state, { dramaFollowers: 8, realityRelatives: 4 });
+  applyRelationships(state, { "Aunt JPEG": -5, "Uncle Signal": -3, "Cousin Reply Guy": -2 });
+  const affectedNodes = ["Aunt JPEG", "Uncle Signal", "Cousin Reply Guy", "Linux Forum Mentor"];
+  state.affectedNodes = Array.from(new Set([...state.affectedNodes, ...affectedNodes]));
+
+  return {
+    kind: "collapse",
+    title: "AUNT JPEG THINKS QWEN FRANKLIN IS REAL",
+    body: "Aunt JPEG insists the account proves Benjamin Franklin is alive. Uncle Signal believes he is transmitting from 1776. Cousin Reply Guy has started an electricity argument under the demo link.",
+    effectsText: summarizeEffects(
+      { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 },
+      { dramaFollowers: 8, realityRelatives: 4 },
+    ),
+    source: "media-literacy context collapse",
+    audience: "family thread, builders, demo lurkers",
+    context: "Escaped",
+    benefited: "nobody except Cousin Reply Guy's typing stamina",
+    annoyed: "Aunt JPEG, Uncle Signal, and anyone who knows what synthetic means",
+    affectedNodes,
+    responseOptions: ["explainSynthetic", "moveQwenDms", "pinMediaLiteracy", "letProjectSpeak", "muteQwenThread"],
+    responseRequired: true,
+    guestAvatar: "qwen-franklin",
+    credit: QWEN_FRANKLIN_GUEST_BANNER,
+    showGuestLinks: true,
+    mechanicalNote: "The joke is audience context collapse and media literacy; Qwen's project is credited, useful, and fictionalized here.",
+  };
+}
+
 function applyFeedEvent(state: GameState, event: FeedEvent): void {
   applyEffects(state, event.effects);
   applyFollowers(state, event.followers);
@@ -853,6 +1110,42 @@ function addFeedItem(state: GameState, item: Omit<FeedItem, "id" | "day">): void
     },
     ...state.feedItems,
   ].slice(0, 7);
+}
+
+function addQwenGuestPostFeedCard(state: GameState): void {
+  addFeedItem(state, {
+    title: "Qwen Franklin guest-posts a useful explainer",
+    body: "The guest account explains synthetic historical characters, visible attribution, and why civic imagination works better with labels.",
+    kind: "feed",
+    audience: "history nerds, AI builders, civic tinkerers",
+    context: state.metrics.heat > 58 ? "Fraying" : "Contained",
+    reactions: 96,
+    comments: 14,
+    shares: 9,
+    guestAvatar: "qwen-franklin",
+    commentSamples: [
+      { author: "Linux Forum Mentor", text: "Clear provenance. Good practice.", tone: "useful" },
+      { author: "Aunt JPEG", text: "So he is not literally in the laptop?", tone: "worry" },
+    ],
+  });
+}
+
+function addQwenSocietyFeedCard(state: GameState, title: string): void {
+  addFeedItem(state, {
+    title,
+    body: "A credited guest signal from Myles's Founding Father A.I. arrives inside SignalBarn, scripted and safely fictional.",
+    kind: "feed",
+    audience: "Founders & Future Society and adjacent builders",
+    context: state.metrics.realityDrift > 48 ? "Fraying" : "Contained",
+    reactions: 54,
+    comments: 9,
+    shares: 4,
+    guestAvatar: "qwen-franklin",
+    commentSamples: [
+      { author: "Coworker Maya", text: "This is the right kind of labeling.", tone: "dry" },
+      { author: "Cousin Reply Guy", text: "But what distro would Franklin use?", tone: "chaos" },
+    ],
+  });
 }
 
 function makeComments(tags: string[], kind: DayReport["kind"]): FeedItem["commentSamples"] {
@@ -1068,6 +1361,7 @@ function cloneState(state: GameState): GameState {
     feedItems: state.feedItems.map((item) => ({
       ...item,
       commentSamples: item.commentSamples.map((comment) => ({ ...comment })),
+      guestAvatar: item.guestAvatar,
     })),
     affectedNodes: [...state.affectedNodes],
     report: state.report
@@ -1079,6 +1373,9 @@ function cloneState(state: GameState): GameState {
             : undefined,
           affectedNodes: state.report.affectedNodes ? [...state.report.affectedNodes] : undefined,
           responseOptions: state.report.responseOptions ? [...state.report.responseOptions] : undefined,
+          guestAvatar: state.report.guestAvatar,
+          credit: state.report.credit,
+          showGuestLinks: state.report.showGuestLinks,
         }
       : undefined,
     summary: state.summary ? { ...state.summary, followers: { ...state.summary.followers } } : undefined,

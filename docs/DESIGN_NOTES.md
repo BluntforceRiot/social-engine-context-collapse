@@ -41,6 +41,21 @@ v0.3 focuses on first-run clarity, public-demo scan speed, and balance rather th
 - Create Group now has a live forecast that changes with premise, tone, rules, and first post.
 - Failure thresholds and repair responses were tuned after automated full-run playtests so most runs reach a readable ending instead of collapsing too early.
 
+## v0.4 Qwen Franklin Competitor Reference
+
+The Qwen Franklin crossover is designed as a credited, affectionate guest signal from a friendly competitor rather than a copied feature or scoring sticker.
+
+- It is optional and appears only once per run.
+- It cannot appear before Day 8.
+- Knowledge, creator, coding, Linux, retro, and community-oriented play guarantees one invitation between Days 8 and 14 so reviewers can actually see the reference.
+- Other play styles get a moderate random chance in that same window.
+- It is scripted and static, with no runtime LLM, backend, API key, or network request.
+- It uses original Social Engine event writing and an original SVG guest avatar.
+- It adds a Knowledge/Agency-leaning community without overpowering the normal score paths.
+- Its unique failure pressure is media-literacy context collapse: relatives confusing a synthetic historical guest account with literal evidence.
+- About/Credits includes an active `Visit Founding Father A.I.` link and a non-scoring `Preview Qwen Franklin Event` button.
+- The public article lists a GitHub source path, but this foundation build keeps the in-game source button hidden while documenting the path in notices/submission docs.
+
 ## Core Loop
 
 Each run lasts 30 days.

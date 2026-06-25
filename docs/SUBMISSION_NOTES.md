@@ -32,6 +32,7 @@ This is not a party-politics simulator. It does not use real politicians, real p
 - Generated WebAudio only; no copyrighted audio.
 - GitHub Pages workflow included but not deployed/pushed by Codex.
 - v0.3 automated playtests cover three 30-day strategy styles: balanced repair/community, creator/viral pressure, and community organizer.
+- v0.4.0 adds a credited, scripted Qwen Franklin competitor reference with original dialogue/art and no direct third-party code or asset reuse.
 
 ## Demo URL
 
@@ -56,6 +57,22 @@ Placeholder.
 ## Scoring Notes
 
 The scoring model rewards balanced reach, trust, agency, belonging, skill credibility, opportunity contacts, community health, relationship repair, and real-world organizing. It penalizes drama, burnout, reality drift, trust collapse, and excessive drama-follower accumulation.
+
+## v0.4.0 Qwen Franklin Reference Notes
+
+- Public project URL: `https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in`
+- Source path listed by that article: `https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father`
+- The active `Visit Founding Father A.I.` link opens in a new tab with `target="_blank"` and `rel="noopener noreferrer"`.
+- The public UI does not render a source button in this foundation build, but the optional source-link field is retained for later use.
+- The invitation event cannot appear before Day 8.
+- Qualifying knowledge, creator, coding, Linux, retro, and community-oriented play guarantees one invitation between Days 8 and 14.
+- Other play styles have a moderate random chance during that same period.
+- The Founders & Future Society community unlocks through the Qwen reference path.
+- Joining Founders & Future Society is idempotent; once joined, the card shows `JOINED` and cannot reapply rewards.
+- Aunt JPEG can trigger a funny, nonpartisan media-literacy context-collapse event after the Qwen reference enters the run.
+- Public About/Credits page includes the competitor-reference card, active project link, original/no-reuse attribution, and a non-scoring `Preview Qwen Franklin Event` button.
+- `npm run playtest:qwen` verifies discoverability, non-mutating preview behavior, active project link, absent source-link UI while no source URL is configured, joined state, Aunt JPEG responses, About/Credits content, and horizontal overflow at 1440x900, 1366x768, and 1280x720.
+- See `THIRD_PARTY_NOTICES.md` and `docs/submission/COMPETITOR_REFERENCE_QWEN_FRANKLIN.md`.
 
 ## v0.3 Final Candidate Notes
 

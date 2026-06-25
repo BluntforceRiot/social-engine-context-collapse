@@ -1,7 +1,8 @@
 {
   "name": "social-engine-context-collapse",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
@@ -11,7 +12,9 @@
     "screenshots:v01": "node scripts/capture-v01-screenshots.mjs",
     "screenshots:v02": "node scripts/capture-v02-screenshots.mjs",
     "screenshots:v03": "node scripts/capture-v03-screenshots.mjs",
-    "playtest:v03": "node scripts/playtest-v03.mjs"
+    "screenshots:qwen": "node scripts/capture-qwen-cameo-screenshots.mjs",
+    "playtest:v03": "node scripts/playtest-v03.mjs",
+    "playtest:qwen": "node scripts/playtest-qwen-cameo.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
