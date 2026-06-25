@@ -81,6 +81,67 @@ export type RelationshipKey =
   | "Linux Forum Mentor"
   | "Small-Town Neighbor";
 
+export type PathKey =
+  | "Community"
+  | "Viral"
+  | "Knowledge"
+  | "Relationship"
+  | "Creator"
+  | "Organizer"
+  | "Escape";
+
+export interface PathMilestoneState {
+  community: {
+    helpfulMemberEvents: number;
+    moderationSuccesses: number;
+    recurringContributors: number;
+    healthyGroupDays: number;
+    memberSupportActions: number;
+  };
+  viral: {
+    viralEvents: number;
+    viralOpportunitiesConverted: number;
+    falloutManaged: number;
+    peakReach: number;
+    destructiveViralEvents: number;
+  };
+  knowledge: {
+    tutorialsPosted: number;
+    peopleHelped: number;
+    expertInteractions: number;
+    usefulThreadsPinned: number;
+    mentorInteractions: number;
+  };
+  relationship: {
+    privateRepairs: number;
+    closeFriendsPreserved: number;
+    publicConflictsResolved: number;
+    relationshipLosses: number;
+    directMessagesSent: number;
+  };
+  creator: {
+    buildLogsPosted: number;
+    projectMilestones: number;
+    collaboratorsFound: number;
+    opportunitiesConverted: number;
+    usefulOutputsPublished: number;
+  };
+  organizer: {
+    eventsHosted: number;
+    totalAttendance: number;
+    recurringParticipants: number;
+    groupChallengesCompleted: number;
+    offlineActionsCompleted: number;
+  };
+  escape: {
+    directContactsBuilt: number;
+    offlineDays: number;
+    boundariesSet: number;
+    platformDependenceReduced: number;
+    exitPlanCompleted: boolean;
+  };
+}
+
 export interface Metrics {
   reach: number;
   trust: number;
@@ -196,6 +257,15 @@ export interface RunSummary {
   date: string;
   outcome: "victory" | "failure";
   title: string;
+  primaryEnding: string;
+  secondaryEnding?: string;
+  failureCause?: string;
+  strongestRemainingPath: string;
+  completedMilestones: string[];
+  missedThresholds: string[];
+  biggestTurningPoint: string;
+  strategyHint: string;
+  triggeringEvent: string;
   score: number;
   day: number;
   followers: Followers;
@@ -212,15 +282,20 @@ export interface VictoryMilestone {
   label: string;
   progress: number;
   complete: boolean;
+  mandatory?: boolean;
 }
 
 export interface GameState {
   day: number;
   interestIds: InterestKey[];
   actionHistoryIds: string[];
+  actionUseDays: Record<string, number[]>;
+  handRefreshesToday: number;
+  handVariant: number;
   metrics: Metrics;
   followers: Followers;
   relationships: Record<RelationshipKey, number>;
+  pathMilestones: PathMilestoneState;
   joinedCommunityIds: string[];
   createdGroup?: CreatedGroup;
   recentPost: string;

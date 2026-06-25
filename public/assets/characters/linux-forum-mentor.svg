@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Linux Forum Mentor">
+  <rect width="80" height="80" rx="14" fill="#102b35"/>
+  <circle cx="40" cy="38" r="22" fill="#ddb17d"/>
+  <path d="M21 32c6-16 27-20 39-2-12-2-23-1-39 2Z" fill="#ece3c8"/>
+  <circle cx="32" cy="39" r="3" fill="#171512"/>
+  <circle cx="49" cy="39" r="3" fill="#171512"/>
+  <path d="M30 51c6 4 15 4 21 0" fill="none" stroke="#6b3a27" stroke-width="3" stroke-linecap="round"/>
+  <rect x="56" y="15" width="13" height="17" rx="2" fill="#1b1f2a"/>
+  <path d="M59 21h7M59 26h5" stroke="#70e0a3" stroke-width="2" stroke-linecap="round"/>
+  <path d="M16 66c5-13 13-19 24-19s20 6 24 19" fill="#2c8f77"/>
+</svg>

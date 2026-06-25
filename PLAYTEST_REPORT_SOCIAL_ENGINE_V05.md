@@ -1,0 +1,102 @@
+# Social Engine v0.5 Browser Playtest Report
+
+Base URL: http://127.0.0.1:4173/
+Generated: 2026-06-25T03:19:51.192Z
+
+- PASS: Premium title lockup visible
+- PASS: Submission build text visible
+- PASS: Old v0.4 public note removed
+- PASS: Six daily action cards visible
+- PASS: Hand refresh button visible
+- PASS: Refresh changes the hand
+- PASS: Fatigue labels shown on cards
+- PASS: Avatar graph renders person avatars
+- PASS: Inspector is below graph, not overlaying nodes
+- PASS: Graph labels only reveal focused/active nodes
+- PASS: Visible graph labels do not collide
+- PASS: Actual create-group forecast visible
+- PASS: Create launch button visible before launch
+- PASS: Manage-group state shown after launch/demo state
+- PASS: Qwen invitation present
+- PASS: Qwen invitation choices present
+- PASS: Qwen project link active: href
+- PASS: Qwen project link active: new tab
+- PASS: Qwen project link active: noopener noreferrer
+- PASS: Qwen source link active: href
+- PASS: Qwen source link active: new tab
+- PASS: Qwen source link active: noopener noreferrer
+- PASS: Founders Society community card visible
+- PASS: Founders Society joined-state protected
+- PASS: Aunt JPEG Qwen collapse present
+- PASS: Aunt JPEG has five responses
+- PASS: Community Victory route has correct primary ending
+- PASS: Community Victory shows completed milestones
+- PASS: Community Victory shows strategy explanation
+- PASS: Viral Victory route has correct primary ending
+- PASS: Viral Victory shows completed milestones
+- PASS: Viral Victory shows strategy explanation
+- PASS: Knowledge Victory route has correct primary ending
+- PASS: Knowledge Victory shows completed milestones
+- PASS: Knowledge Victory shows strategy explanation
+- PASS: Relationship Victory route has correct primary ending
+- PASS: Relationship Victory shows completed milestones
+- PASS: Relationship Victory shows strategy explanation
+- PASS: Creator Victory route has correct primary ending
+- PASS: Creator Victory shows completed milestones
+- PASS: Creator Victory shows strategy explanation
+- PASS: Organizer Victory route has correct primary ending
+- PASS: Organizer Victory shows completed milestones
+- PASS: Organizer Victory shows strategy explanation
+- PASS: Escape Victory route has correct primary ending
+- PASS: Escape Victory shows completed milestones
+- PASS: Escape Victory shows strategy explanation
+- PASS: Context Collapse route has correct failure
+- PASS: Context Collapse does not show contradictory missing collapse
+- PASS: Context Collapse uses Failure Cause label
+- PASS: Feed Rot route has correct failure
+- PASS: Feed Rot does not show contradictory missing collapse
+- PASS: Feed Rot uses Failure Cause label
+- PASS: Unfriended by Christmas route has correct failure
+- PASS: Unfriended by Christmas does not show contradictory missing collapse
+- PASS: Unfriended by Christmas uses Failure Cause label
+- PASS: Niche Capture route has correct failure
+- PASS: Niche Capture does not show contradictory missing collapse
+- PASS: Niche Capture uses Failure Cause label
+- PASS: Burnout Spiral route has correct failure
+- PASS: Burnout Spiral does not show contradictory missing collapse
+- PASS: Burnout Spiral uses Failure Cause label
+- PASS: Reply Guy Singularity route has correct failure
+- PASS: Reply Guy Singularity does not show contradictory missing collapse
+- PASS: Reply Guy Singularity uses Failure Cause label
+- PASS: Algorithm Dependent route has correct failure
+- PASS: Algorithm Dependent does not show contradictory missing collapse
+- PASS: Algorithm Dependent uses Failure Cause label
+- PASS: About/Credits competitor card visible
+- PASS: Credits project link active: href
+- PASS: Credits project link active: new tab
+- PASS: Credits project link active: noopener noreferrer
+- PASS: Credits source link active: href
+- PASS: Credits source link active: new tab
+- PASS: Credits source link active: noopener noreferrer
+- PASS: No horizontal overflow at 1920x1080 on #/demo-main
+- PASS: Six cards visible at 1920x1080
+- PASS: No horizontal overflow at 1920x1080 on #/demo-graph-hover
+- PASS: No horizontal overflow at 1920x1080 on #/demo-victory-organizer
+- PASS: No horizontal overflow at 1920x1080 on #/credits
+- PASS: No horizontal overflow at 1440x900 on #/demo-main
+- PASS: Six cards visible at 1440x900
+- PASS: No horizontal overflow at 1440x900 on #/demo-graph-hover
+- PASS: No horizontal overflow at 1440x900 on #/demo-victory-organizer
+- PASS: No horizontal overflow at 1440x900 on #/credits
+- PASS: No horizontal overflow at 1366x768 on #/demo-main
+- PASS: Six cards visible at 1366x768
+- PASS: No horizontal overflow at 1366x768 on #/demo-graph-hover
+- PASS: No horizontal overflow at 1366x768 on #/demo-victory-organizer
+- PASS: No horizontal overflow at 1366x768 on #/credits
+- PASS: No horizontal overflow at 1280x720 on #/demo-main
+- PASS: Six cards visible at 1280x720
+- PASS: No horizontal overflow at 1280x720 on #/demo-graph-hover
+- PASS: No horizontal overflow at 1280x720 on #/demo-victory-organizer
+- PASS: No horizontal overflow at 1280x720 on #/credits
+
+All browser checks passed.

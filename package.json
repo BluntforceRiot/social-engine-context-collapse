@@ -1,6 +1,6 @@
 {
   "name": "social-engine-context-collapse",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
@@ -13,9 +13,12 @@
     "screenshots:v02": "node scripts/capture-v02-screenshots.mjs",
     "screenshots:v03": "node scripts/capture-v03-screenshots.mjs",
     "screenshots:v04": "node scripts/capture-v04-screenshots.mjs",
+    "screenshots:v05": "node scripts/capture-v05-screenshots.mjs",
     "screenshots:qwen": "node scripts/capture-qwen-cameo-screenshots.mjs",
     "playtest:v03": "node scripts/playtest-v03.mjs",
     "playtest:v04": "node scripts/playtest-v04-balance.mjs",
+    "balance:v05": "node scripts/balance-v05.mjs",
+    "playtest:v05": "node scripts/playtest-v05-browser.mjs",
     "playtest:qwen": "node scripts/playtest-qwen-cameo.mjs"
   },
   "devDependencies": {

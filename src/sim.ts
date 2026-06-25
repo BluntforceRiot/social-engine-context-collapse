@@ -22,6 +22,8 @@ import type {
   InterestKey,
   MetricKey,
   Metrics,
+  PathKey,
+  PathMilestoneState,
   RelationshipKey,
   ResponseKey,
   RunSummary,
@@ -49,6 +51,25 @@ const FOLLOWER_LIMITS: Record<FollowerKey, [number, number]> = {
   realityRelatives: [0, 999],
 };
 
+const PATH_NAMES: PathKey[] = [
+  "Community",
+  "Viral",
+  "Knowledge",
+  "Relationship",
+  "Creator",
+  "Organizer",
+  "Escape",
+];
+
+const HAND_SECTIONS = [
+  "relationship-community",
+  "knowledge-creator",
+  "growth-viral",
+  "boundary-repair",
+  "interest",
+  "wildcard",
+] as const;
+
 const responseEffects: Record<
   ResponseKey,
   {
@@ -61,14 +82,14 @@ const responseEffects: Record<
 > = {
   clarify: {
     title: "Clarified Publicly",
-    effects: { trust: 9, drama: -14, heat: -11, burnout: 2, agency: 1 },
+    effects: { trust: 9, drama: -14, heat: -11, burnout: -2, agency: 1 },
     followers: { dramaFollowers: -9 },
     affectedNodes: ["Coworker Maya", "Concerned Relative"],
     feedText: "A plain-language clarification trims the fire without fully starving it.",
   },
   private: {
     title: "Moved It To DMs",
-    effects: { trust: 12, belonging: 7, drama: -9, heat: -9, burnout: 1, reach: -70 },
+    effects: { trust: 12, belonging: 7, drama: -9, heat: -9, burnout: -2, reach: -70 },
     followers: { closeFriends: 1, dramaFollowers: -5 },
     affectedNodes: ["Old Friend Nate", "Concerned Relative"],
     feedText: "The public room gets quieter because the real repair moved somewhere human-sized.",
@@ -89,7 +110,7 @@ const responseEffects: Record<
   },
   pin: {
     title: "Pinned Context",
-    effects: { trust: 7, skillCred: 5, drama: -7, heat: -5, agency: 2 },
+    effects: { trust: 7, skillCred: 5, drama: -7, heat: -5, burnout: -2, agency: 2 },
     followers: { nicheMembers: 8, dramaFollowers: -3 },
     affectedNodes: ["Linux Forum Mentor", "Coworker Maya"],
     feedText: "The useful version of the post gets a signpost before the argument eats the room.",
@@ -117,7 +138,7 @@ const responseEffects: Record<
   },
   tutorial: {
     title: "Made A Follow-Up Tutorial",
-    effects: { skillCred: 11, agency: 7, reach: 180, trust: 4, heat: 2, drama: -3 },
+    effects: { skillCred: 11, agency: 7, reach: 180, trust: 4, heat: -2, drama: -3, burnout: -4 },
     followers: { nicheMembers: 14, opportunityContacts: 2 },
     affectedNodes: ["Linux Forum Mentor", "Coworker Maya"],
     feedText: "You turn chaos into a useful artifact. The machine hates how well that works.",
@@ -221,6 +242,9 @@ export function createInitialState(
     day: 1,
     interestIds: safeInterestIds,
     actionHistoryIds: [],
+    actionUseDays: {},
+    handRefreshesToday: 0,
+    handVariant: 0,
     metrics: {
       reach: 210,
       trust: 68,
@@ -244,6 +268,7 @@ export function createInitialState(
       RelationshipKey,
       number
     >,
+    pathMilestones: createEmptyPathMilestones(),
     joinedCommunityIds: [],
     lastActionTags: [],
     recentPost: "A quiet hello from the barn.",
@@ -273,41 +298,73 @@ export function getCommunity(id: string): Community | undefined {
 
 export function getDailyActionHand(state: GameState): ActionCard[] {
   const picked = new Set<string>();
-  const add = (id: string): void => {
-    const action = getAction(id);
-    if (!action) return;
-    if (id === "create-group" && state.createdGroup) return;
-    if (state.actionHistoryIds.slice(0, 2).includes(id) && picked.size > 3) return;
-    picked.add(id);
+  const variant = state.handVariant + stableHash(`${state.day}:${state.lastActionId ?? "fresh"}`);
+  const add = (ids: string[]): void => {
+    for (const id of ids) {
+      if (picked.size >= 6) return;
+      if (picked.has(id)) continue;
+      const action = getAction(id);
+      if (!action) continue;
+      if (id === "create-group" && state.createdGroup) continue;
+      if (id === "take-community-independent" && !canTakeCommunityIndependent(state)) continue;
+      picked.add(id);
+      return;
+    }
   };
+  const rotate = (ids: string[], offset: number): string[] =>
+    ids.map((_, index) => ids[(index + Math.abs(offset)) % ids.length]);
 
-  if (state.metrics.burnout > 58) {
-    add(state.day % 2 === 0 ? "weekend-offline" : "touch-grass");
-  } else if (state.metrics.drama > 48 || state.metrics.heat > 54) {
-    add(state.day % 2 === 0 ? "refuse-argue" : "moderate-fight");
-  } else if (state.metrics.trust < 46) {
-    add(state.day % 2 === 0 ? "private-message" : "dm-person");
-  } else if (state.day % 4 === 0) {
-    add(state.day % 3 === 0 ? "signal-boost" : "celebrate-win");
-  }
+  const relationshipCommunity = state.metrics.trust < 48 || state.metrics.drama > 55
+    ? ["private-message", "dm-person", "apologize", "moderate-fight", "celebrate-win", "join-community"]
+    : state.joinedCommunityIds.length || state.createdGroup
+      ? ["celebrate-win", "moderate-thread", "recruit-members", "group-challenge", "private-message"]
+      : ["join-community", "ask-question", "celebrate-win", "private-message", "create-group"];
+  add(rotate(relationshipCommunity, variant + 1));
 
-  if (!state.joinedCommunityIds.length) {
-    add("join-community");
-  } else if (!state.createdGroup) {
-    add(state.day % 2 === 0 ? "create-group" : "recruit-members");
-  } else {
-    add(state.day % 2 === 0 ? "moderate-thread" : "recruit-members");
-  }
+  const knowledgeCreator = [
+    "share-tip",
+    "tiny-build-log",
+    "ask-expert",
+    "pin-useful-thread",
+    "publish-followup-explainer",
+    "turn-viral-project",
+    "retro-repair",
+  ];
+  add(rotate(knowledgeCreator, variant + 2));
+
+  const growthViral = state.metrics.reach > 1400 || state.pathMilestones.viral.viralEvents > 0
+    ? [
+        "convert-attention-list",
+        "turn-viral-project",
+        "invite-followers-room",
+        "contact-opportunity-lead",
+        "signal-boost",
+        "reply-thread",
+      ]
+    : ["signal-boost", "post-update", "post-joke", "recruit-members", "group-challenge", "blurry-camping-photo"];
+  add(rotate(growthViral, variant + 3));
+
+  const boundaryRepair = state.metrics.burnout > 55
+    ? ["schedule-recovery", "weekend-offline", "touch-grass", "block-mute", "refuse-argue", "delete-post"]
+    : state.metrics.heat > 50 || state.metrics.drama > 45
+      ? ["refuse-argue", "block-mute", "delegate-moderation", "delete-post", "apologize", "schedule-recovery"]
+      : ["dm-person", "private-message", "refuse-argue", "touch-grass", "delegate-moderation", "take-break"];
+  add(rotate(boundaryRepair, variant + 4));
 
   const interestPool = normalizeInterestIds(state.interestIds).flatMap((interestId) => {
     const interest = STARTING_INTERESTS.find((item) => item.id === interestId);
     return interest?.actionHints ?? [];
   });
-  const uniqueInterestPool = Array.from(new Set(interestPool));
-  const offset = stableHash(`${state.day}:${state.lastActionId ?? "fresh"}:${state.interestIds.join("|")}`);
-  for (let index = 0; index < uniqueInterestPool.length && picked.size < 6; index += 1) {
-    add(uniqueInterestPool[(offset + index) % uniqueInterestPool.length]);
-  }
+  add(rotate(Array.from(new Set(interestPool)), variant + 5));
+
+  const wildcard = canTakeCommunityIndependent(state)
+    ? ["take-community-independent", "weekend-offline", "contact-opportunity-lead", "host-event"]
+    : state.day > 20 && state.metrics.heat < 44
+      ? ["weekend-offline", "host-event", "small-town-meetup", "ask-expert", "pin-useful-thread"]
+      : state.day > 15 && (state.joinedCommunityIds.length || state.createdGroup)
+        ? ["host-event", "small-town-meetup", "group-challenge", "delegate-moderation", "moderate-thread"]
+        : ["ask-question", "host-event", "correct-ai-image", "ask-linux-help", "golf-swing-clip"];
+  add(rotate(wildcard, variant + 6));
 
   const fallbackIds = [
     "share-tip",
@@ -318,16 +375,43 @@ export function getDailyActionHand(state: GameState): ActionCard[] {
     "pin-useful-thread",
     "take-break",
     "delete-post",
+    "join-community",
+    "create-group",
   ];
-  for (const id of fallbackIds) {
+  for (const id of rotate(fallbackIds, variant + 7)) {
     if (picked.size >= 6) break;
-    add(id);
+    const action = getAction(id);
+    if (!action) continue;
+    if (id === "create-group" && state.createdGroup) continue;
+    picked.add(id);
   }
 
   return Array.from(picked)
     .map((id) => getAction(id))
     .filter(Boolean)
     .slice(0, 6) as ActionCard[];
+}
+
+export function refreshDailyHand(state: GameState): GameState {
+  const next = cloneState(state);
+  next.handRefreshesToday += 1;
+  next.handVariant += 1 + next.day;
+  if (next.handRefreshesToday > 1) {
+    applyEffects(next, { heat: 3, burnout: 1 });
+  }
+  next.scorePreview = calculateScore(next);
+  return next;
+}
+
+export function getActionFreshness(state: GameState, actionId: string): {
+  label: string;
+  multiplier: number;
+} {
+  const uses = recentActionUses(state, actionId, 5);
+  if (uses <= 0) return { label: "Fresh", multiplier: 1 };
+  if (uses === 1) return { label: "Familiar", multiplier: 0.75 };
+  if (uses === 2) return { label: "Audience Tiring", multiplier: 0.45 };
+  return { label: "Diminishing Returns", multiplier: 0.2 };
 }
 
 export function playAction(state: GameState, actionId: string): GameState {
@@ -337,9 +421,11 @@ export function playAction(state: GameState, actionId: string): GameState {
   }
 
   const next = cloneState(state);
+  const freshness = getActionFreshness(next, action.id);
   next.lastActionId = action.id;
   next.lastActionTags = [...action.tags];
   next.actionHistoryIds = [action.id, ...next.actionHistoryIds].slice(0, 12);
+  next.actionUseDays[action.id] = [...(next.actionUseDays[action.id] ?? []), next.day].slice(-12);
   next.recentPost = action.title;
   next.affectedNodes = affectedFromRelationships(action.relationships);
 
@@ -355,9 +441,10 @@ export function playAction(state: GameState, actionId: string): GameState {
     next.repairsMade += 1;
   }
 
-  applyEffects(next, action.effects);
+  applyEffects(next, action.effects, freshness.multiplier);
   applyFollowers(next, action.followers);
   applyRelationships(next, action.relationships);
+  applyActionMilestones(next, action, freshness.multiplier);
 
   if (next.createdGroup && action.tags.includes("community")) {
     next.createdGroup.members += action.id === "recruit-members" ? 18 : 9;
@@ -366,6 +453,9 @@ export function playAction(state: GameState, actionId: string): GameState {
 
   const report = buildDayReport(next, action);
   next.report = report;
+  if (freshness.label !== "Fresh") {
+    next.report.mechanicalNote = `${next.report.mechanicalNote ? `${next.report.mechanicalNote} ` : ""}${freshness.label}: repeated actions have reduced positive gains this week.`;
+  }
   next.affectedNodes = Array.from(new Set([...next.affectedNodes, ...(report.affectedNodes ?? [])]));
   addFeedItem(next, {
     title: action.title,
@@ -399,10 +489,16 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
   next.lastActionId = "join-community";
   next.lastActionTags = ["community", community.tone];
   next.actionHistoryIds = [`join:${community.id}`, ...next.actionHistoryIds].slice(0, 12);
+  next.actionUseDays["join-community"] = [...(next.actionUseDays["join-community"] ?? []), next.day].slice(-12);
   next.recentPost = `Joined ${community.name}`;
   next.affectedNodes = community.tone === "healthy" ? ["Local Admin Carol", "Coworker Maya"] : ["Aunt JPEG", "Uncle Signal", "Coworker Maya"];
   applyEffects(next, community.joinEffects);
   applyFollowers(next, community.joinFollowers);
+  next.pathMilestones.community.memberSupportActions += 1;
+  next.pathMilestones.community.recurringContributors += community.tone === "healthy" ? 1 : 0;
+  next.pathMilestones.community.helpfulMemberEvents += community.tone === "healthy" ? 1 : 0;
+  next.pathMilestones.viral.peakReach = Math.max(next.pathMilestones.viral.peakReach, next.metrics.reach);
+  next.pathMilestones.creator.collaboratorsFound += community.joinFollowers.opportunityContacts ? 1 : 0;
   if (community.tone === "healthy") {
     applyRelationships(next, { "Coworker Maya": 2, "Local Admin Carol": 2 });
   } else {
@@ -457,10 +553,16 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
   next.lastActionId = "create-group";
   next.lastActionTags = ["community", "builder", group.tone];
   next.actionHistoryIds = ["create-group", ...next.actionHistoryIds].slice(0, 12);
+  next.actionUseDays["create-group"] = [...(next.actionUseDays["create-group"] ?? []), next.day].slice(-12);
   next.recentPost = `Created ${group.name}`;
   next.affectedNodes = ["Local Admin Carol", "Old Friend Nate"];
   applyEffects(next, tradeoffs.effects);
   applyFollowers(next, tradeoffs.followers);
+  next.pathMilestones.community.memberSupportActions += 1;
+  next.pathMilestones.community.recurringContributors += Math.max(1, Math.round(tradeoffs.members / 18));
+  next.pathMilestones.community.healthyGroupDays += tradeoffs.health >= 70 ? 1 : 0;
+  next.pathMilestones.organizer.recurringParticipants += Math.max(1, Math.round(tradeoffs.members / 10));
+  next.pathMilestones.creator.projectMilestones += 1;
   next.report = {
     kind: "feed",
     title: `${group.name} Is Live`,
@@ -499,6 +601,7 @@ export function resolveReport(state: GameState, response?: ResponseKey): GameSta
     applyEffects(next, choice.effects);
     applyFollowers(next, choice.followers);
     next.affectedNodes = choice.affectedNodes;
+    applyResponseMilestones(next, response, state.report);
     next.eventLog = [`Day ${next.day}: ${choice.title}`, ...next.eventLog].slice(0, 6);
     addFeedItem(next, {
       title: choice.title,
@@ -522,10 +625,14 @@ export function resolveReport(state: GameState, response?: ResponseKey): GameSta
       if (!next.joinedCommunityIds.includes("founders-future-society")) {
         next.joinedCommunityIds.push("founders-future-society");
       }
+      next.pathMilestones.knowledge.mentorInteractions += 1;
+      next.pathMilestones.community.recurringContributors += 1;
       addQwenSocietyFeedCard(next, "Joined the Founders & Future Society");
     }
     if (response === "inviteQwenGuestPost") {
       next.qwenGuestPosted = true;
+      next.pathMilestones.knowledge.expertInteractions += 1;
+      next.pathMilestones.knowledge.peopleHelped += 2;
       addQwenGuestPostFeedCard(next);
       if (Math.random() < 0.28) {
         applyEffects(next, { reach: 210, skillCred: 5, heat: 4 });
@@ -535,6 +642,8 @@ export function resolveReport(state: GameState, response?: ResponseKey): GameSta
     }
     if (response === "shareQwenDemo") {
       next.qwenDemoShared = true;
+      next.pathMilestones.viral.viralEvents += 1;
+      next.pathMilestones.viral.peakReach = Math.max(next.pathMilestones.viral.peakReach, next.metrics.reach);
     }
     if (response === "shareQwenDemo" || response === "letProjectSpeak") {
       addQwenSocietyFeedCard(next, response === "shareQwenDemo" ? "Shared the Qwen Franklin demo" : "Opened the credited Qwen Franklin article");
@@ -549,17 +658,22 @@ export function resolveReport(state: GameState, response?: ResponseKey): GameSta
 
 export function advanceDay(state: GameState): GameState {
   const next = cloneState(state);
+  updateDerivedMilestones(next);
   const failure = checkFailure(next);
   if (failure) {
-    next.summary = buildSummary(next, "failure", failure);
+    const ending = pickFailureEnding(next, failure);
+    next.summary = buildSummary(next, "failure", ending.title, ending);
     return next;
   }
   if (next.day >= RUN_LENGTH_DAYS) {
-    next.summary = buildSummary(next, "victory", pickVictoryTitle(next));
+    const ending = pickEnding(next);
+    next.summary = buildSummary(next, ending.outcome, ending.title, ending);
     return next;
   }
   next.day += 1;
-  applyEffects(next, { drama: -1, heat: -1, burnout: 1 });
+  next.handRefreshesToday = 0;
+  applyDailyMaintenance(next);
+  updateDerivedMilestones(next);
   next.scorePreview = calculateScore(next);
   return next;
 }
@@ -595,21 +709,21 @@ export function calculateScore(state: GameState): number {
 
 export function getVictoryPathProgress(
   state: GameState,
-): Array<{ name: string; value: number; status: string; milestones: string[] }> {
+): Array<{ name: string; value: number; status: string; milestones: string[]; qualifies: boolean }> {
   const milestones = getVictoryMilestones(state);
-  const names = ["Community", "Viral", "Knowledge", "Relationship", "Creator", "Organizer", "Escape"];
-  return names.map((name) => {
+  return PATH_NAMES.map((name) => {
     const pathMilestones = milestones.filter((milestone) => milestone.path === name);
-    const value = Math.round(
-      pathMilestones.reduce((sum, milestone) => sum + milestone.progress, 0) /
-        Math.max(1, pathMilestones.length),
-    );
+    const mandatory = pathMilestones.filter((milestone) => milestone.mandatory);
+    const value = pathProgressValue(pathMilestones);
     const completed = pathMilestones.filter((milestone) => milestone.complete).length;
     return {
       name,
       value: clamp(value, 0, 100),
       status: labelMilestoneProgress(value, completed),
-      milestones: pathMilestones.map((milestone) => `${milestone.complete ? "Hit" : "Next"}: ${milestone.label}`),
+      qualifies: value >= 80 && mandatory.every((milestone) => milestone.complete) && !pathDisqualified(state, name),
+      milestones: pathMilestones.map(
+        (milestone) => `${milestone.complete ? "Hit" : "Next"}: ${milestone.label}${milestone.mandatory ? " *" : ""}`,
+      ),
     };
   });
 }
@@ -617,35 +731,61 @@ export function getVictoryPathProgress(
 export function getVictoryMilestones(state: GameState): VictoryMilestone[] {
   const m = state.metrics;
   const f = state.followers;
-  const groupHealth = state.createdGroup?.health ?? state.joinedCommunityIds.length * 18;
+  const p = state.pathMilestones;
+  const groupHealth = state.createdGroup?.health ?? (state.joinedCommunityIds.length ? 62 : 0);
+  const hasGroup = state.joinedCommunityIds.length > 0 || Boolean(state.createdGroup);
+  const healthyBelonging = (m.belonging + m.trust + Math.max(0, 100 - m.drama)) / 3;
+  const directRelationshipAverage =
+    (state.relationships["Old Friend Nate"] +
+      state.relationships["Coworker Maya"] +
+      state.relationships["Concerned Relative"] +
+      state.relationships["Small-Town Neighbor"]) /
+    4;
   return [
-    milestone("Community", "trusted room", (m.belonging + groupHealth) / 1.8, m.belonging >= 62 && groupHealth >= 58),
-    milestone("Community", "manageable drama", 100 - m.drama, m.drama <= 36),
-    milestone("Community", "people return", Math.min(100, f.nicheMembers / 3.2), f.nicheMembers >= 240),
+    milestone("Community", "joined or created a real room", hasGroup ? 100 : 0, hasGroup, true),
+    milestone("Community", "healthy room days", progressCount(p.community.healthyGroupDays, 4), p.community.healthyGroupDays >= 4, true),
+    milestone("Community", "helpful member events", progressCount(p.community.helpfulMemberEvents, 4), p.community.helpfulMemberEvents >= 4, true),
+    milestone("Community", "moderation successes", progressCount(p.community.moderationSuccesses, 2), p.community.moderationSuccesses >= 2, true),
+    milestone("Community", "recurring contributors", progressCount(p.community.recurringContributors, 5), p.community.recurringContributors >= 5, true),
+    milestone("Community", "trust / belonging without drama", healthyBelonging, m.trust >= 62 && m.belonging >= 62 && m.drama <= 42, true),
 
-    milestone("Viral", "reach without rot", Math.min(100, m.reach / 32), m.reach >= 2400),
-    milestone("Viral", "still trusted", m.trust, m.trust >= 45),
-    milestone("Viral", "not burnt out", 100 - m.burnout, m.burnout <= 64),
+    milestone("Viral", "multiple viral events", progressCount(p.viral.viralEvents, 3), p.viral.viralEvents >= 3, true),
+    milestone("Viral", "sustained major reach", Math.min(100, p.viral.peakReach / 24), p.viral.peakReach >= 2200, true),
+    milestone("Viral", "attention converted", progressCount(p.viral.viralOpportunitiesConverted, 2), p.viral.viralOpportunitiesConverted >= 2, true),
+    milestone("Viral", "fallout managed", progressCount(p.viral.falloutManaged, 1), p.viral.falloutManaged >= 1, true),
+    milestone("Viral", "trust survives the spike", (m.trust + (100 - m.burnout)) / 2, m.trust >= 42 && m.burnout <= 76, true),
+    milestone("Viral", "not purely destructive", 100 - p.viral.destructiveViralEvents * 25, p.viral.destructiveViralEvents <= 2, false),
 
-    milestone("Knowledge", "skill credibility", m.skillCred, m.skillCred >= 70),
-    milestone("Knowledge", "expert contacts", Math.min(100, f.opportunityContacts * 12), f.opportunityContacts >= 7),
-    milestone("Knowledge", "reality anchored", 100 - m.realityDrift, m.realityDrift <= 42),
+    milestone("Knowledge", "tutorials or useful explainers", progressCount(p.knowledge.tutorialsPosted, 4), p.knowledge.tutorialsPosted >= 4, true),
+    milestone("Knowledge", "people helped", progressCount(p.knowledge.peopleHelped, 9), p.knowledge.peopleHelped >= 9, true),
+    milestone("Knowledge", "expert or mentor interactions", progressCount(p.knowledge.expertInteractions + p.knowledge.mentorInteractions, 4), p.knowledge.expertInteractions + p.knowledge.mentorInteractions >= 4, true),
+    milestone("Knowledge", "useful threads pinned", progressCount(p.knowledge.usefulThreadsPinned, 2), p.knowledge.usefulThreadsPinned >= 2, true),
+    milestone("Knowledge", "skill cred with reality anchored", (m.skillCred + (100 - m.realityDrift)) / 2, m.skillCred >= 64 && m.realityDrift <= 45, true),
 
-    milestone("Relationship", "close ties intact", Math.min(100, f.closeFriends * 12), f.closeFriends >= 7),
-    milestone("Relationship", "average trust", averageRelationship(state), averageRelationship(state) >= 62),
-    milestone("Relationship", "public trust", m.trust, m.trust >= 62),
+    milestone("Relationship", "private repairs", progressCount(p.relationship.privateRepairs, 4), p.relationship.privateRepairs >= 4, true),
+    milestone("Relationship", "direct messages sent", progressCount(p.relationship.directMessagesSent, 4), p.relationship.directMessagesSent >= 4, true),
+    milestone("Relationship", "public conflicts resolved", progressCount(p.relationship.publicConflictsResolved, 2), p.relationship.publicConflictsResolved >= 2, true),
+    milestone("Relationship", "close friends preserved", Math.min(100, f.closeFriends * 14), f.closeFriends >= 7 && p.relationship.relationshipLosses <= 1, true),
+    milestone("Relationship", "healthy relationship average", directRelationshipAverage, directRelationshipAverage >= 66 && m.trust >= 60, true),
 
-    milestone("Creator", "agency engine", m.agency, m.agency >= 68),
-    milestone("Creator", "credible output", (m.skillCred + f.opportunityContacts * 8) / 1.8, m.skillCred >= 58 && f.opportunityContacts >= 5),
-    milestone("Creator", "audience beyond drama", Math.min(100, (f.nicheMembers + f.casualFollowers * 0.25) / 3), f.nicheMembers >= 170),
+    milestone("Creator", "build logs posted", progressCount(p.creator.buildLogsPosted, 4), p.creator.buildLogsPosted >= 4, true),
+    milestone("Creator", "project milestones", progressCount(p.creator.projectMilestones, 3), p.creator.projectMilestones >= 3, true),
+    milestone("Creator", "collaborators found", progressCount(p.creator.collaboratorsFound, 3), p.creator.collaboratorsFound >= 3, true),
+    milestone("Creator", "opportunities converted", progressCount(p.creator.opportunitiesConverted, 2), p.creator.opportunitiesConverted >= 2, true),
+    milestone("Creator", "agency and skill cred", (m.agency + m.skillCred) / 2, m.agency >= 64 && m.skillCred >= 62, true),
 
-    milestone("Organizer", "events hosted", Math.min(100, state.eventsHosted * 34), state.eventsHosted >= 3),
-    milestone("Organizer", "offline agency", m.agency, m.agency >= 60),
-    milestone("Organizer", "belonging base", m.belonging, m.belonging >= 58),
+    milestone("Organizer", "events hosted", progressCount(p.organizer.eventsHosted, 4), p.organizer.eventsHosted >= 4, true),
+    milestone("Organizer", "total attendance", progressCount(p.organizer.totalAttendance, 42), p.organizer.totalAttendance >= 42, true),
+    milestone("Organizer", "recurring participants", progressCount(p.organizer.recurringParticipants, 12), p.organizer.recurringParticipants >= 12, true),
+    milestone("Organizer", "group challenges completed", progressCount(p.organizer.groupChallengesCompleted, 2), p.organizer.groupChallengesCompleted >= 2, true),
+    milestone("Organizer", "offline agency and belonging", (m.agency + m.belonging) / 2, m.agency >= 60 && m.belonging >= 60, true),
 
-    milestone("Escape", "low heat", 100 - m.heat, m.heat <= 38),
-    milestone("Escape", "low burnout", 100 - m.burnout, m.burnout <= 42),
-    milestone("Escape", "direct ties", (m.agency + m.belonging + f.closeFriends * 8) / 2.4, m.agency >= 55 && f.closeFriends >= 6),
+    milestone("Escape", "offline days", progressCount(p.escape.offlineDays, 5), p.escape.offlineDays >= 5, true),
+    milestone("Escape", "direct contacts built", progressCount(p.escape.directContactsBuilt, 4), p.escape.directContactsBuilt >= 4, true),
+    milestone("Escape", "boundaries set", progressCount(p.escape.boundariesSet, 3), p.escape.boundariesSet >= 3, true),
+    milestone("Escape", "platform dependence reduced", progressCount(p.escape.platformDependenceReduced, 3), p.escape.platformDependenceReduced >= 3, true),
+    milestone("Escape", "explicit exit plan completed", p.escape.exitPlanCompleted ? 100 : 0, p.escape.exitPlanCompleted, true),
+    milestone("Escape", "low heat and low burnout", (100 - m.heat + 100 - m.burnout) / 2, m.heat <= 38 && m.burnout <= 38, true),
   ];
 }
 
@@ -824,7 +964,21 @@ export function createDemoState(
     | "feed"
     | "qwenInvitation"
     | "qwenCommunity"
-    | "qwenCollapse",
+    | "qwenCollapse"
+    | "victoryCommunity"
+    | "victoryViral"
+    | "victoryKnowledge"
+    | "victoryRelationship"
+    | "victoryCreator"
+    | "victoryOrganizer"
+    | "victoryEscape"
+    | "failureContext"
+    | "failureFeedRot"
+    | "failureUnfriended"
+    | "failureNiche"
+    | "failureBurnout"
+    | "failureReplyGuy"
+    | "failureAlgorithm",
 ): GameState {
   const state = createInitialState();
   state.joinedCommunityIds = ["linux-forum", "bigfoot-field"];
@@ -997,19 +1151,220 @@ export function createDemoState(
 
   if (kind === "victory") {
     applyEffects(state, { trust: 16, agency: 24, belonging: 22, skillCred: 24, drama: -10, heat: -8 });
+    state.pathMilestones.community.helpfulMemberEvents = 5;
+    state.pathMilestones.community.moderationSuccesses = 3;
+    state.pathMilestones.community.recurringContributors = 7;
+    state.pathMilestones.community.healthyGroupDays = 6;
+    state.pathMilestones.knowledge.tutorialsPosted = 4;
+    state.pathMilestones.knowledge.peopleHelped = 9;
+    state.pathMilestones.knowledge.expertInteractions = 2;
+    state.pathMilestones.knowledge.mentorInteractions = 2;
+    state.pathMilestones.knowledge.usefulThreadsPinned = 2;
     state.day = RUN_LENGTH_DAYS;
     state.eventsHosted = 4;
-    state.summary = buildSummary(state, "victory", "Hybrid Victory: Community + Knowledge");
+    const ending = pickEnding(state);
+    state.summary = buildSummary(state, ending.outcome, ending.title, ending);
   }
 
   if (kind === "failure") {
     applyEffects(state, { trust: -60, drama: 80, burnout: 72, heat: 65, realityDrift: 34 });
     applyFollowers(state, { dramaFollowers: 380, closeFriends: -5 });
     state.day = 23;
-    state.summary = buildSummary(state, "failure", "Context Collapse");
+    state.worstContextCollapse = "The family thread and coworker thread merged into one bad room.";
+    const ending = pickFailureEnding(state, "Context Collapse");
+    state.summary = buildSummary(state, "failure", ending.title, ending);
+  }
+
+  if (kind.startsWith("victory") && kind !== "victory") {
+    prepareVictoryDemo(state, kind.replace("victory", "") as PathKey);
+  }
+
+  if (kind.startsWith("failure") && kind !== "failure") {
+    prepareFailureDemo(state, kind);
   }
 
   return state;
+}
+
+function prepareVictoryDemo(state: GameState, path: PathKey): void {
+  state.pathMilestones = createEmptyPathMilestones();
+  state.joinedCommunityIds = [];
+  state.createdGroup = undefined;
+  state.day = RUN_LENGTH_DAYS;
+  state.metrics = {
+    reach: path === "Viral" ? 3300 : 1450,
+    trust: path === "Viral" ? 58 : 72,
+    agency: path === "Escape" ? 72 : 68,
+    belonging: path === "Creator" || path === "Knowledge" ? 58 : 72,
+    drama: 18,
+    burnout: path === "Escape" ? 28 : 36,
+    heat: path === "Viral" ? 62 : path === "Escape" ? 28 : 34,
+    realityDrift: 18,
+    skillCred: path === "Organizer" || path === "Relationship" ? 56 : 72,
+  };
+  state.followers = {
+    closeFriends: 8,
+    nicheMembers: 210,
+    casualFollowers: path === "Viral" ? 900 : 280,
+    dramaFollowers: path === "Viral" ? 70 : 12,
+    opportunityContacts: 6,
+    realityRelatives: 5,
+  };
+  state.relationships = Object.fromEntries(RELATIONSHIPS.map((name) => [name, 70])) as Record<
+    RelationshipKey,
+    number
+  >;
+
+  if (path === "Community") {
+    state.joinedCommunityIds = ["linux-forum"];
+    state.createdGroup = makeDemoGroup(82);
+    state.pathMilestones.community = {
+      helpfulMemberEvents: 5,
+      moderationSuccesses: 3,
+      recurringContributors: 7,
+      healthyGroupDays: 6,
+      memberSupportActions: 5,
+    };
+  }
+  if (path === "Viral") {
+    state.pathMilestones.viral = {
+      viralEvents: 5,
+      viralOpportunitiesConverted: 3,
+      falloutManaged: 3,
+      peakReach: 3300,
+      destructiveViralEvents: 1,
+    };
+    state.biggestViralEvent = "A useful thread escaped the barn and came back with collaborators.";
+  }
+  if (path === "Knowledge") {
+    state.pathMilestones.knowledge = {
+      tutorialsPosted: 5,
+      peopleHelped: 12,
+      expertInteractions: 3,
+      usefulThreadsPinned: 3,
+      mentorInteractions: 2,
+    };
+  }
+  if (path === "Relationship") {
+    state.pathMilestones.relationship = {
+      privateRepairs: 5,
+      closeFriendsPreserved: 8,
+      publicConflictsResolved: 3,
+      relationshipLosses: 0,
+      directMessagesSent: 5,
+    };
+  }
+  if (path === "Creator") {
+    state.pathMilestones.creator = {
+      buildLogsPosted: 5,
+      projectMilestones: 4,
+      collaboratorsFound: 4,
+      opportunitiesConverted: 3,
+      usefulOutputsPublished: 5,
+    };
+  }
+  if (path === "Organizer") {
+    state.joinedCommunityIds = ["local-events"];
+    state.createdGroup = makeDemoGroup(76);
+    state.pathMilestones.organizer = {
+      eventsHosted: 5,
+      totalAttendance: 56,
+      recurringParticipants: 15,
+      groupChallengesCompleted: 3,
+      offlineActionsCompleted: 5,
+    };
+  }
+  if (path === "Escape") {
+    state.pathMilestones.escape = {
+      directContactsBuilt: 6,
+      offlineDays: 7,
+      boundariesSet: 5,
+      platformDependenceReduced: 5,
+      exitPlanCompleted: true,
+    };
+  }
+
+  updateDerivedMilestones(state);
+  const ending = pickEnding(state);
+  state.summary = buildSummary(state, ending.outcome, ending.title, ending);
+}
+
+function prepareFailureDemo(state: GameState, kind: string): void {
+  state.pathMilestones = createEmptyPathMilestones();
+  state.day = 24;
+  state.recentPost = "A risky thread reached the wrong audience";
+  state.metrics = {
+    reach: 1800,
+    trust: 32,
+    agency: 34,
+    belonging: 42,
+    drama: 70,
+    burnout: 66,
+    heat: 72,
+    realityDrift: 36,
+    skillCred: 42,
+  };
+  state.followers = {
+    closeFriends: 4,
+    nicheMembers: 100,
+    casualFollowers: 460,
+    dramaFollowers: 130,
+    opportunityContacts: 2,
+    realityRelatives: 10,
+  };
+  let failure = "Context Collapse";
+  if (kind === "failureFeedRot") {
+    failure = "Feed Rot";
+    state.metrics.reach = 4600;
+    state.metrics.trust = 28;
+    state.followers.dramaFollowers = 220;
+  }
+  if (kind === "failureUnfriended") {
+    failure = "Unfriended by Christmas";
+    state.followers.closeFriends = 1;
+    state.relationships["Old Friend Nate"] = 12;
+  }
+  if (kind === "failureNiche") {
+    failure = "Niche Capture";
+    state.metrics.realityDrift = 82;
+    state.metrics.trust = 38;
+    state.followers.realityRelatives = 42;
+  }
+  if (kind === "failureBurnout") {
+    failure = "Burnout Spiral";
+    state.metrics.burnout = 94;
+  }
+  if (kind === "failureReplyGuy") {
+    failure = "Reply Guy Singularity";
+    state.relationships["Cousin Reply Guy"] = 18;
+    state.followers.dramaFollowers = 280;
+  }
+  if (kind === "failureAlgorithm") {
+    failure = "Algorithm Dependent";
+    state.metrics.heat = 94;
+    state.metrics.agency = 30;
+    state.pathMilestones.viral.viralOpportunitiesConverted = 0;
+  }
+  if (kind === "failureContext") {
+    state.metrics.trust = 20;
+    state.metrics.drama = 88;
+    state.metrics.heat = 80;
+  }
+  state.worstContextCollapse = `${failure} followed ${state.recentPost}.`;
+  const ending = pickFailureEnding(state, failure);
+  state.summary = buildSummary(state, "failure", ending.title, ending);
+}
+
+function makeDemoGroup(health: number): CreatedGroup {
+  return {
+    name: "Demo Independence Room",
+    premise: "Small-town project board",
+    tone: "welcoming",
+    rules: "no argument spirals",
+    firstPost: "One small win per day.",
+    members: 88,
+    health,
+  };
 }
 
 function buildDayReport(state: GameState, action: ActionCard): DayReport {
@@ -1032,7 +1387,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
       title: `${action.title} Escapes The Barn`,
       body: `${PLATFORM_NAME} pushes it beyond the intended room. Opportunity knocks, then Cousin Reply Guy knocks louder.`,
       effectsText: summarizeEffects(
-        { reach: viralGain, drama: 12, heat: 12, burnout: 6, agency: 4 },
+        { reach: viralGain, drama: 10, heat: 10, burnout: 3, agency: 4 },
         { casualFollowers: 32, dramaFollowers: 18, opportunityContacts: 1 },
       ),
       source: sample(["community share", "reply fight", "algorithm bump", "screenshot spread", "expert boost"]),
@@ -1045,8 +1400,10 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
       responseOptions: ["clarify", "private", "lean", "delete", "pin", "mute", "tutorial", "logoff"],
       responseRequired: true,
     };
-    applyEffects(state, { reach: viralGain, drama: 12, heat: 12, burnout: 6, agency: 4 });
+    applyEffects(state, { reach: viralGain, drama: 10, heat: 10, burnout: 3, agency: 4 });
     applyFollowers(state, { casualFollowers: 32, dramaFollowers: 18, opportunityContacts: 1 });
+    state.pathMilestones.viral.viralEvents += 1;
+    state.pathMilestones.viral.peakReach = Math.max(state.pathMilestones.viral.peakReach, state.metrics.reach);
     state.biggestViralEvent = report.title;
     return report;
   }
@@ -1057,7 +1414,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
       title: "Context Collapse: The Wrong Room Found It",
       body: "A post meant for one circle arrives in another with all the nuance sanded off.",
       effectsText: summarizeEffects(
-        { trust: -8, drama: 13, heat: 10, burnout: 6 },
+        { trust: -8, drama: 13, heat: 10, burnout: 5 },
         { dramaFollowers: 12 },
       ),
       source: sample(["family argument", "screenshot spread", "quote-share", "reply fight"]),
@@ -1070,8 +1427,9 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
       responseOptions: ["clarify", "private", "delete", "apologize", "friend", "mute", "logoff"],
       responseRequired: true,
     };
-    applyEffects(state, { trust: -8, drama: 13, heat: 10, burnout: 6 });
+    applyEffects(state, { trust: -8, drama: 13, heat: 10, burnout: 5 });
     applyFollowers(state, { dramaFollowers: 12 });
+    state.pathMilestones.viral.destructiveViralEvents += 1;
     state.worstContextCollapse = report.title;
     return report;
   }
@@ -1082,6 +1440,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
   const eventPool = matchingEvents.length ? matchingEvents : FEED_EVENTS;
   const event = sample(eventPool);
   applyFeedEvent(state, event);
+  applyFeedEventMilestones(state, event);
   return {
     kind: "feed",
     title: event.title,
@@ -1197,6 +1556,7 @@ function maybeBuildQwenAuntCollapseReport(state: GameState, action: ActionCard):
 
   state.qwenAuntCollapseSeen = true;
   state.worstContextCollapse = "Aunt JPEG thought Qwen Franklin was real.";
+  state.pathMilestones.viral.destructiveViralEvents += 1;
   applyEffects(state, { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 });
   applyFollowers(state, { dramaFollowers: 8, realityRelatives: 4 });
   applyRelationships(state, { "Aunt JPEG": -5, "Uncle Signal": -3, "Cousin Reply Guy": -2 });
@@ -1232,6 +1592,35 @@ function applyFeedEvent(state: GameState, event: FeedEvent): void {
   applyRelationships(state, event.relationships);
   if (event.tags.includes("context")) {
     state.worstContextCollapse = event.title;
+  }
+}
+
+function applyFeedEventMilestones(state: GameState, event: FeedEvent): void {
+  const p = state.pathMilestones;
+  if (event.tags.includes("good") || event.id === "regulars-help-newcomer") {
+    p.community.helpfulMemberEvents += 1;
+  }
+  if (event.tags.includes("knowledge")) {
+    p.knowledge.peopleHelped += 2;
+    p.knowledge.mentorInteractions += event.id.includes("mentor") || event.id.includes("expert") ? 1 : 0;
+  }
+  if (event.tags.includes("creator")) {
+    p.creator.collaboratorsFound += 1;
+  }
+  if (event.tags.includes("organizer") || event.tags.includes("offline")) {
+    p.organizer.recurringParticipants += 2;
+    p.escape.directContactsBuilt += 1;
+  }
+  if (event.tags.includes("relationship") || event.tags.includes("repair")) {
+    p.relationship.privateRepairs += 1;
+    p.relationship.publicConflictsResolved += 1;
+  }
+  if (event.tags.includes("viral")) {
+    p.viral.viralEvents += 1;
+    p.viral.peakReach = Math.max(p.viral.peakReach, state.metrics.reach);
+  }
+  if (event.tags.includes("context") || event.tags.includes("drama")) {
+    p.viral.destructiveViralEvents += event.tags.includes("context") ? 1 : 0;
   }
 }
 
@@ -1313,10 +1702,197 @@ function makeComments(tags: string[], kind: DayReport["kind"]): FeedItem["commen
   ];
 }
 
-function applyEffects(state: GameState, effects: Partial<Metrics> = {}): void {
+function applyActionMilestones(state: GameState, action: ActionCard, multiplier: number): void {
+  const p = state.pathMilestones;
+  const strong = multiplier >= 0.7;
+  const weak = multiplier < 0.45;
+
+  if (action.id === "share-tip" || action.id === "publish-followup-explainer") {
+    p.knowledge.tutorialsPosted += strong ? 1 : 0;
+    p.knowledge.peopleHelped += strong ? 2 : 1;
+    p.creator.usefulOutputsPublished += 1;
+  }
+  if (action.id === "ask-expert" || action.id === "ask-linux-help") {
+    p.knowledge.expertInteractions += action.id === "ask-expert" ? 1 : 0;
+    p.knowledge.mentorInteractions += 1;
+    p.knowledge.peopleHelped += weak ? 0 : 1;
+  }
+  if (action.id === "pin-useful-thread" || action.id === "publish-followup-explainer") {
+    p.knowledge.usefulThreadsPinned += action.id === "pin-useful-thread" ? 1 : 0;
+    p.community.helpfulMemberEvents += 1;
+  }
+  if (action.id === "tiny-build-log") {
+    p.creator.buildLogsPosted += 1;
+    p.creator.projectMilestones += strong ? 1 : 0;
+    p.creator.usefulOutputsPublished += 1;
+  }
+  if (action.id === "turn-viral-project") {
+    p.creator.projectMilestones += 1;
+    p.creator.opportunitiesConverted += 1;
+    p.viral.viralOpportunitiesConverted += 1;
+  }
+  if (action.id === "convert-attention-list" || action.id === "contact-opportunity-lead") {
+    p.viral.viralOpportunitiesConverted += 1;
+    p.creator.opportunitiesConverted += 1;
+    p.creator.collaboratorsFound += 1;
+  }
+  if (action.id === "invite-followers-room") {
+    p.viral.viralOpportunitiesConverted += 1;
+    p.community.helpfulMemberEvents += 1;
+    p.community.recurringContributors += 1;
+  }
+  if (action.id === "signal-boost" || action.id === "celebrate-win") {
+    p.community.helpfulMemberEvents += 1;
+    p.community.memberSupportActions += 1;
+  }
+  if (action.id === "recruit-members") {
+    p.community.recurringContributors += 2;
+    p.community.memberSupportActions += 1;
+  }
+  if (action.id === "moderate-thread" || action.id === "moderate-fight" || action.id === "delegate-moderation") {
+    p.community.moderationSuccesses += 1;
+    p.relationship.publicConflictsResolved += 1;
+    if (action.id === "delegate-moderation") {
+      p.community.recurringContributors += 2;
+      p.viral.falloutManaged += 1;
+    }
+  }
+  if (action.id === "host-event" || action.id === "small-town-meetup") {
+    const attendance = action.id === "small-town-meetup" ? 12 : 10;
+    p.organizer.eventsHosted += 1;
+    p.organizer.totalAttendance += attendance + Math.max(0, Math.round(state.followers.nicheMembers / 40));
+    p.organizer.recurringParticipants += 3;
+    p.organizer.offlineActionsCompleted += 1;
+    p.escape.directContactsBuilt += 1;
+    p.escape.offlineDays += 1;
+  }
+  if (action.id === "group-challenge") {
+    p.organizer.groupChallengesCompleted += 1;
+    p.organizer.recurringParticipants += 3;
+    p.community.helpfulMemberEvents += 1;
+  }
+  if (action.id === "private-message" || action.id === "dm-person") {
+    p.relationship.privateRepairs += 1;
+    p.relationship.directMessagesSent += 1;
+    p.escape.directContactsBuilt += 1;
+  }
+  if (action.id === "apologize" || action.id === "refuse-argue") {
+    p.relationship.publicConflictsResolved += 1;
+    p.relationship.privateRepairs += action.id === "apologize" ? 1 : 0;
+  }
+  if (action.id === "block-mute" || action.id === "refuse-argue" || action.id === "schedule-recovery") {
+    p.escape.boundariesSet += 1;
+    p.escape.platformDependenceReduced += 1;
+  }
+  if (action.id === "touch-grass" || action.id === "weekend-offline" || action.id === "schedule-recovery") {
+    p.escape.offlineDays += action.id === "weekend-offline" ? 2 : 1;
+    p.escape.platformDependenceReduced += 1;
+  }
+  if (action.id === "take-community-independent") {
+    p.escape.exitPlanCompleted = true;
+    p.escape.directContactsBuilt += 2;
+    p.escape.offlineDays += 1;
+    p.escape.platformDependenceReduced += 2;
+  }
+  if ((action.followers?.opportunityContacts ?? 0) > 0) {
+    p.creator.collaboratorsFound += 1;
+  }
+  p.viral.peakReach = Math.max(p.viral.peakReach, state.metrics.reach);
+}
+
+function applyResponseMilestones(state: GameState, response: ResponseKey, report?: DayReport): void {
+  const p = state.pathMilestones;
+  const wasViral = report?.kind === "viral";
+  const wasCollapse = report?.kind === "collapse";
+  if (wasViral || wasCollapse) {
+    if (["clarify", "private", "delete", "pin", "mute", "tutorial", "logoff", "friend", "apologize"].includes(response)) {
+      p.viral.falloutManaged += wasViral ? 1 : 0;
+      p.relationship.publicConflictsResolved += wasCollapse ? 1 : 0;
+    }
+  }
+  if (response === "tutorial" || response === "pinMediaLiteracy") {
+    p.knowledge.tutorialsPosted += 1;
+    p.knowledge.peopleHelped += 2;
+    p.knowledge.usefulThreadsPinned += 1;
+    p.viral.viralOpportunitiesConverted += wasViral ? 1 : 0;
+    p.creator.usefulOutputsPublished += 1;
+  }
+  if (response === "pin") {
+    p.knowledge.usefulThreadsPinned += 1;
+    p.community.moderationSuccesses += 1;
+  }
+  if (response === "private" || response === "moveQwenDms") {
+    p.relationship.privateRepairs += 1;
+    p.relationship.directMessagesSent += 1;
+    p.escape.directContactsBuilt += 1;
+  }
+  if (response === "clarify" || response === "apologize" || response === "friend" || response === "explainSynthetic") {
+    p.relationship.publicConflictsResolved += 1;
+    p.relationship.privateRepairs += response === "apologize" ? 1 : 0;
+  }
+  if (response === "delete" || response === "mute" || response === "logoff" || response === "muteQwenThread") {
+    p.escape.boundariesSet += 1;
+    p.escape.platformDependenceReduced += 1;
+  }
+  if (response === "lean") {
+    p.viral.viralEvents += 1;
+    p.viral.destructiveViralEvents += 1;
+  }
+  if (response === "letProjectSpeak") {
+    p.knowledge.expertInteractions += 1;
+    p.knowledge.peopleHelped += 1;
+  }
+  p.viral.peakReach = Math.max(p.viral.peakReach, state.metrics.reach);
+}
+
+function applyDailyMaintenance(state: GameState): void {
+  const effects: Partial<Metrics> = { drama: -1, heat: -1, burnout: 1 };
+  if (!hasRecentActionTag(state, ["relationship", "private", "repair"], 5) && state.day > 6) {
+    effects.trust = (effects.trust ?? 0) - 1;
+    for (const name of ["Old Friend Nate", "Concerned Relative", "Coworker Maya"] as RelationshipKey[]) {
+      state.relationships[name] = clamp(state.relationships[name] - 1, 0, 100);
+    }
+  }
+  if (!hasRecentActionTag(state, ["community", "organizer", "ally", "moderation"], 4) && state.day > 5) {
+    effects.belonging = (effects.belonging ?? 0) - 1;
+    if (state.createdGroup) {
+      state.createdGroup.health = clamp(state.createdGroup.health - 2, 0, 100);
+    }
+  }
+  if (!hasRecentActionTag(state, ["knowledge", "creator", "learning", "tutorial"], 5) && state.day > 7) {
+    effects.skillCred = (effects.skillCred ?? 0) - 1;
+  }
+  if (state.metrics.reach > 2500) {
+    effects.burnout = (effects.burnout ?? 0) + 1;
+    effects.heat = (effects.heat ?? 0) + 1;
+  }
+  if (state.metrics.heat > 72) {
+    effects.trust = (effects.trust ?? 0) - 1;
+    effects.burnout = (effects.burnout ?? 0) + 1;
+  }
+  applyEffects(state, effects);
+}
+
+function updateDerivedMilestones(state: GameState): void {
+  const p = state.pathMilestones;
+  if (state.createdGroup && state.createdGroup.health >= 70) {
+    p.community.healthyGroupDays += 1;
+  } else if (state.joinedCommunityIds.some((id) => getCommunity(id)?.tone === "healthy")) {
+    p.community.healthyGroupDays += 1;
+  }
+  p.relationship.closeFriendsPreserved = Math.max(
+    p.relationship.closeFriendsPreserved,
+    Math.min(9, state.followers.closeFriends),
+  );
+  p.relationship.relationshipLosses = Math.max(0, 6 - state.followers.closeFriends);
+  p.viral.peakReach = Math.max(p.viral.peakReach, state.metrics.reach);
+}
+
+function applyEffects(state: GameState, effects: Partial<Metrics> = {}, multiplier = 1): void {
   for (const [key, value] of Object.entries(effects) as [MetricKey, number][]) {
     const [min, max] = METRIC_LIMITS[key];
-    state.metrics[key] = clamp(state.metrics[key] + scaleMetricDelta(key, state.metrics[key], value), min, max);
+    const scaledValue = value > 0 ? value * multiplier : value;
+    state.metrics[key] = clamp(state.metrics[key] + scaleMetricDelta(key, state.metrics[key], scaledValue), min, max);
   }
 }
 
@@ -1326,17 +1902,17 @@ function scaleMetricDelta(key: MetricKey, current: number, delta: number): numbe
   }
 
   if (key === "reach") {
-    if (current >= 5000) return Math.max(1, Math.round(delta * 0.42));
-    if (current >= 2600) return Math.max(1, Math.round(delta * 0.58));
-    if (current >= 1200) return Math.max(1, Math.round(delta * 0.76));
-    return delta;
+    if (current >= 5000) return Math.round(delta * 0.25);
+    if (current >= 2600) return Math.round(delta * 0.42);
+    if (current >= 1200) return Math.round(delta * 0.62);
+    return Math.round(delta);
   }
 
-  // Tuned for v0.4: late-run gains still matter, but capped meters stop snowballing.
-  if (current >= 88) return Math.max(1, Math.round(delta * 0.4));
-  if (current >= 74) return Math.max(1, Math.round(delta * 0.6));
-  if (current >= 58) return Math.max(1, Math.round(delta * 0.78));
-  return delta;
+  if (current >= 95) return 0;
+  if (current >= 85) return Math.round(delta * 0.15);
+  if (current >= 70) return Math.round(delta * 0.4);
+  if (current >= 55) return Math.round(delta * 0.7);
+  return Math.round(delta);
 }
 
 function applyFollowers(state: GameState, followers: Partial<Followers> = {}): void {
@@ -1359,31 +1935,151 @@ function checkFailure(state: GameState): string | undefined {
   const m = state.metrics;
   const f = state.followers;
   const replyGuy = state.relationships["Cousin Reply Guy"];
-  if (m.burnout >= 98) return "Burnout Spiral";
-  if (m.trust <= 6 && m.drama >= 80) return "Context Collapse";
-  if (m.reach > 3000 && m.trust < 18) return "Feed Rot";
-  if (f.closeFriends <= 0 || state.relationships["Old Friend Nate"] <= 5) return "Unfriended by Christmas";
-  if (m.realityDrift >= 90 && f.realityRelatives > f.nicheMembers * 0.55) return "Niche Capture";
-  if (replyGuy <= 5 && f.dramaFollowers > f.casualFollowers * 0.72) return "Reply Guy Singularity";
-  if (m.heat >= 96 && m.agency < 30) return "Algorithm Dependent";
+  if (m.burnout >= 92) return "Burnout Spiral";
+  if (m.trust <= 16 && m.drama >= 88 && m.heat >= 82) return "Context Collapse";
+  if (m.reach > 6200 && m.trust < 28 && f.dramaFollowers > 280) return "Feed Rot";
+  if (f.closeFriends <= 2 || (state.relationships["Old Friend Nate"] <= 18 && state.pathMilestones.relationship.relationshipLosses >= 3)) {
+    return "Unfriended by Christmas";
+  }
+  if (m.realityDrift >= 72 && f.realityRelatives >= 18 && m.trust < 48) return "Niche Capture";
+  if (replyGuy <= 25 && f.dramaFollowers > 210 && m.drama >= 64) return "Reply Guy Singularity";
+  if (m.heat >= 90 && m.agency < 45 && state.pathMilestones.viral.viralOpportunitiesConverted === 0) return "Algorithm Dependent";
   return undefined;
 }
 
-function pickVictoryTitle(state: GameState): string {
-  const paths = getVictoryPathProgress(state)
-    .filter((path) => path.value >= 68)
-    .sort((a, b) => b.value - a.value)
-    .map((path) => path.name);
-  if (!paths.length) {
-    paths.push(state.metrics.trust > state.metrics.drama ? "Survivor" : "Barely Offline");
+interface EndingDecision {
+  outcome: "victory" | "failure";
+  title: string;
+  primaryPath: string;
+  secondaryPath?: string;
+  failureCause?: string;
+  strongestRemainingPath: string;
+  completedMilestones: string[];
+  missedThresholds: string[];
+  biggestTurningPoint: string;
+  triggeringEvent: string;
+  strategyHint: string;
+}
+
+function pickEnding(state: GameState): EndingDecision {
+  const progress = getVictoryPathProgress(state).sort((a, b) => b.value - a.value);
+  const qualified = progress.filter((path) => path.qualifies);
+  if (!qualified.length) {
+    return pickNonVictoryEnding(state, progress);
   }
-  return paths.length > 1 ? `Hybrid Victory: ${paths.slice(0, 2).join(" + ")}` : `${paths[0]} Victory`;
+  const primary = qualified[0];
+  const secondary = qualified.find(
+    (path) => path.name !== primary.name && qualifiesAsHybridSecondary(state, primary, path),
+  );
+  return {
+    outcome: "victory",
+    title: secondary ? `Hybrid Victory: ${primary.name} + ${secondary.name}` : `${primary.name} Victory`,
+    primaryPath: primary.name,
+    secondaryPath: secondary?.name,
+    strongestRemainingPath: progress.find((path) => path.name !== primary.name)?.name ?? "None",
+    completedMilestones: completedMilestoneLabels(state, primary.name, secondary?.name),
+    missedThresholds: missedMilestoneLabels(state, primary.name, secondary?.name),
+    biggestTurningPoint: biggestTurningPoint(state),
+    triggeringEvent: state.recentPost,
+    strategyHint: strategyHintFor(primary.name, secondary?.name),
+  };
+}
+
+function qualifiesAsHybridSecondary(
+  state: GameState,
+  primary: ReturnType<typeof getVictoryPathProgress>[number],
+  candidate: ReturnType<typeof getVictoryPathProgress>[number],
+): boolean {
+  if (candidate.value < 86 || primary.value - candidate.value > 5) {
+    return false;
+  }
+
+  const milestones = state.pathMilestones;
+  if (primary.name === "Creator" && candidate.name === "Knowledge") {
+    return (
+      candidate.value >= 92 &&
+      milestones.knowledge.tutorialsPosted >= 6 &&
+      milestones.knowledge.usefulThreadsPinned >= 4 &&
+      milestones.knowledge.expertInteractions + milestones.knowledge.mentorInteractions >= 6
+    );
+  }
+
+  if (primary.name === "Knowledge" && candidate.name === "Creator") {
+    return milestones.creator.projectMilestones >= 4 && milestones.creator.opportunitiesConverted >= 3;
+  }
+
+  if (primary.name === "Escape" && candidate.name === "Relationship") {
+    return (
+      candidate.value >= 94 &&
+      milestones.relationship.privateRepairs >= 7 &&
+      milestones.relationship.publicConflictsResolved >= 5
+    );
+  }
+
+  if (primary.name === "Relationship" && candidate.name === "Escape") {
+    return (
+      milestones.escape.exitPlanCompleted &&
+      milestones.escape.directContactsBuilt >= 4 &&
+      milestones.escape.boundariesSet >= 3
+    );
+  }
+
+  return true;
+}
+
+function pickFailureEnding(state: GameState, failure: string): EndingDecision {
+  const progress = getVictoryPathProgress(state).sort((a, b) => b.value - a.value);
+  const worstCollapse =
+    failure === "Context Collapse" && state.worstContextCollapse === "No context collapse yet."
+      ? state.recentPost
+      : state.worstContextCollapse;
+  if (failure === "Context Collapse" && state.worstContextCollapse === "No context collapse yet.") {
+    state.worstContextCollapse = `The ${state.recentPost} thread collapsed across audiences.`;
+  }
+  return {
+    outcome: "failure",
+    title: failure,
+    primaryPath: failure,
+    failureCause: failure,
+    strongestRemainingPath: progress[0]?.name ?? "None",
+    completedMilestones: completedMilestoneLabels(state, progress[0]?.name),
+    missedThresholds: missedMilestoneLabels(state, progress[0]?.name).slice(0, 5),
+    biggestTurningPoint: worstCollapse,
+    triggeringEvent: state.recentPost,
+    strategyHint: strategyHintForFailure(failure),
+  };
+}
+
+function pickNonVictoryEnding(
+  state: GameState,
+  progress: ReturnType<typeof getVictoryPathProgress>,
+): EndingDecision {
+  const strongest = progress[0];
+  const title =
+    state.metrics.heat < 42 && state.metrics.burnout < 55
+      ? "Offline but Intact"
+      : state.metrics.trust >= 48
+        ? "Feed Veteran"
+        : "Survivor";
+  return {
+    outcome: "failure",
+    title,
+    primaryPath: title,
+    failureCause: "No victory path qualified",
+    strongestRemainingPath: strongest?.name ?? "None",
+    completedMilestones: completedMilestoneLabels(state, strongest?.name).slice(0, 6),
+    missedThresholds: missedMilestoneLabels(state, strongest?.name).slice(0, 6),
+    biggestTurningPoint: biggestTurningPoint(state),
+    triggeringEvent: state.recentPost,
+    strategyHint: `You were closest to ${strongest?.name ?? "a stable path"}, but mandatory milestones were still missing.`,
+  };
 }
 
 function buildSummary(
   state: GameState,
   outcome: "victory" | "failure",
   title: string,
+  ending: EndingDecision,
 ): RunSummary {
   const score = calculateScore(state);
   const bestRelationship = Object.entries(state.relationships).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Nobody";
@@ -1397,30 +2093,45 @@ function buildSummary(
     date: new Date().toISOString(),
     outcome,
     title,
+    primaryEnding: ending.primaryPath,
+    secondaryEnding: ending.secondaryPath,
+    failureCause: ending.failureCause,
+    strongestRemainingPath: ending.strongestRemainingPath,
+    completedMilestones: ending.completedMilestones,
+    missedThresholds: ending.missedThresholds,
+    biggestTurningPoint: ending.biggestTurningPoint,
+    strategyHint: ending.strategyHint,
+    triggeringEvent: ending.triggeringEvent,
     score,
     day: state.day,
     followers: { ...state.followers },
     trust: state.metrics.trust,
     biggestViralEvent: state.biggestViralEvent,
     bestRelationship,
-    worstContextCollapse: state.worstContextCollapse,
+    worstContextCollapse:
+      outcome === "failure" && title === "Context Collapse" && state.worstContextCollapse === "No context collapse yet."
+        ? ending.biggestTurningPoint
+        : state.worstContextCollapse,
     community: community || "No stable community",
-    headline: makeHeadline(state, outcome, title),
+    headline: makeHeadline(state, outcome, title, ending),
   };
 }
 
-function makeHeadline(state: GameState, outcome: "victory" | "failure", title: string): string {
+function makeHeadline(state: GameState, outcome: "victory" | "failure", title: string, ending: EndingDecision): string {
   if (outcome === "failure") {
-    return `${PLATFORM_NAME} user discovers every audience can fit in one terrible room.`;
+    if (title === "Offline but Intact" || title === "Feed Veteran" || title === "Survivor") {
+      return `${PLATFORM_NAME} run ends without a clean victory: ${ending.missedThresholds[0] ?? "mandatory milestones were missing"}.`;
+    }
+    return `${ending.failureCause}: ${ending.triggeringEvent} pushed the run past a failure threshold.`;
   }
   if (title.includes("Community")) {
-    return "Local niche survives the feed by becoming useful on purpose.";
+    return `The room held because ${ending.completedMilestones.slice(0, 2).join(" and ").toLowerCase()}.`;
   }
   if (title.includes("Viral")) {
-    return "Post escapes containment and somehow brings back opportunities.";
+    return `Attention became opportunity instead of only heat: ${ending.completedMilestones[0] ?? "viral milestones completed"}.`;
   }
   if (title.includes("Escape")) {
-    return "User builds enough direct ties to stop feeding the machine daily.";
+    return "Direct ties and boundaries made the feed optional.";
   }
   if (state.eventsHosted >= 3) {
     return "Online thread becomes real chairs, real snacks, and no ratio.";
@@ -1490,24 +2201,196 @@ function labelFollower(key: string): string {
 }
 
 function labelMilestoneProgress(value: number, completed: number): string {
-  if (completed >= 3 || value >= 78) return "Strong";
-  if (completed >= 2 || value >= 58) return "Rising";
-  if (completed >= 1 || value >= 38) return "Unstable";
+  if (value >= 80 && completed >= 4) return "Strong";
+  if (value >= 65 && completed >= 3) return "Rising";
+  if (value >= 50 || completed >= 2) return "Building";
+  if (completed >= 1 || value >= 30) return "Unstable";
   return "At Risk";
 }
 
-function milestone(path: string, label: string, progress: number, complete: boolean): VictoryMilestone {
+function milestone(
+  path: string,
+  label: string,
+  progress: number,
+  complete: boolean,
+  mandatory = false,
+): VictoryMilestone {
   return {
     path,
     label,
     progress: clamp(progress, 0, 100),
     complete,
+    mandatory,
   };
 }
 
-function averageRelationship(state: GameState): number {
-  const values = Object.values(state.relationships);
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+function pathProgressValue(milestones: VictoryMilestone[]): number {
+  if (!milestones.length) return 0;
+  const mandatory = milestones.filter((item) => item.mandatory);
+  const optional = milestones.filter((item) => !item.mandatory);
+  const mandatoryAverage =
+    mandatory.reduce((sum, item) => sum + item.progress, 0) / Math.max(1, mandatory.length);
+  const optionalAverage =
+    optional.reduce((sum, item) => sum + item.progress, 0) / Math.max(1, optional.length || 1);
+  return Math.round(mandatoryAverage * 0.88 + optionalAverage * (optional.length ? 0.12 : 0));
+}
+
+function progressCount(value: number, target: number): number {
+  return Math.min(100, (value / target) * 100);
+}
+
+function pathDisqualified(state: GameState, path: string): boolean {
+  if (path === "Viral") {
+    return (
+      state.metrics.trust < 36 ||
+      state.metrics.burnout >= 84 ||
+      (state.pathMilestones.viral.destructiveViralEvents > 8 &&
+        state.pathMilestones.viral.falloutManaged < 2)
+    );
+  }
+  if (path === "Community") {
+    return state.metrics.drama > 58;
+  }
+  if (path === "Relationship") {
+    return state.pathMilestones.relationship.relationshipLosses > 2;
+  }
+  if (path === "Knowledge") {
+    return state.metrics.realityDrift > 62;
+  }
+  if (path === "Escape") {
+    return !state.pathMilestones.escape.exitPlanCompleted || state.metrics.heat > 48;
+  }
+  return false;
+}
+
+function completedMilestoneLabels(state: GameState, primary = "", secondary = ""): string[] {
+  const allowed = new Set([primary, secondary].filter(Boolean));
+  return getVictoryMilestones(state)
+    .filter((item) => (!allowed.size || allowed.has(item.path)) && item.complete)
+    .map((item) => `${item.path}: ${item.label}`)
+    .slice(0, 10);
+}
+
+function missedMilestoneLabels(state: GameState, primary = "", secondary = ""): string[] {
+  const allowed = new Set([primary, secondary].filter(Boolean));
+  return getVictoryMilestones(state)
+    .filter((item) => (!allowed.size || allowed.has(item.path)) && item.mandatory && !item.complete)
+    .sort((a, b) => b.progress - a.progress)
+    .map((item) => `${item.path}: ${item.label} (${Math.round(item.progress)}%)`)
+    .slice(0, 10);
+}
+
+function biggestTurningPoint(state: GameState): string {
+  if (state.biggestViralEvent !== "No viral event yet.") return state.biggestViralEvent;
+  if (state.worstContextCollapse !== "No context collapse yet.") return state.worstContextCollapse;
+  return state.eventLog[0] ?? state.recentPost;
+}
+
+function strategyHintFor(primary: string, secondary?: string): string {
+  const hints: Record<string, string> = {
+    Community: "More viral reach would have helped less than steady moderation and contributor rituals.",
+    Viral: "Recovery responses and conversion cards kept attention from becoming pure feed rot.",
+    Knowledge: "Tutorials, expert interactions, and pinned useful threads made credibility specific.",
+    Relationship: "Private repairs beat public trust farming.",
+    Creator: "Build logs and converted opportunities mattered more than raw followers.",
+    Organizer: "Real events, attendance, and recurring participants made the community tangible.",
+    Escape: "Boundaries plus direct contacts made the platform optional.",
+  };
+  return secondary
+    ? `${hints[primary] ?? "The primary path completed its mandatory milestones"} Hybrid credit came from ${secondary}'s own requirements, not shared meters.`
+    : hints[primary] ?? "The path completed its mandatory milestones.";
+}
+
+function strategyHintForFailure(failure: string): string {
+  const hints: Record<string, string> = {
+    "Context Collapse": "Earlier private repair, pinned context, or refusal to argue could have kept audiences separated.",
+    "Feed Rot": "Convert attention into direct opportunities before chasing another reach spike.",
+    "Unfriended by Christmas": "Direct messages and apologies preserve close ties better than public posting.",
+    "Niche Capture": "Reality checks and expert citations can keep weird rooms from rewriting the whole run.",
+    "Burnout Spiral": "Schedule recovery before the feed turns every action into moderation labor.",
+    "Reply Guy Singularity": "Block, mute, or delegate before the loudest person becomes the product.",
+    "Algorithm Dependent": "Use direct-list and project-conversion cards before heat becomes your only engine.",
+  };
+  return hints[failure] ?? "Focus on one path's mandatory milestones instead of broad generic meter growth.";
+}
+
+function canTakeCommunityIndependent(state: GameState): boolean {
+  const p = state.pathMilestones.escape;
+  return (
+    state.day >= 24 &&
+    p.directContactsBuilt >= 4 &&
+    p.boundariesSet >= 3 &&
+    p.offlineDays >= 4 &&
+    state.metrics.heat <= 52
+  );
+}
+
+function recentActionUses(state: GameState, actionId: string, windowDays: number): number {
+  const days = state.actionUseDays[actionId] ?? [];
+  return days.filter((day) => state.day - day <= windowDays).length;
+}
+
+function hasRecentActionTag(state: GameState, tags: string[], windowDays: number): boolean {
+  const tagSet = new Set(tags);
+  return Object.entries(state.actionUseDays).some(([id, days]) => {
+    if (!days.some((day) => state.day - day <= windowDays)) return false;
+    const action = id.startsWith("join:") ? getAction("join-community") : getAction(id);
+    return Boolean(action?.tags.some((tag) => tagSet.has(tag)));
+  });
+}
+
+function createEmptyPathMilestones(): PathMilestoneState {
+  return {
+    community: {
+      helpfulMemberEvents: 0,
+      moderationSuccesses: 0,
+      recurringContributors: 0,
+      healthyGroupDays: 0,
+      memberSupportActions: 0,
+    },
+    viral: {
+      viralEvents: 0,
+      viralOpportunitiesConverted: 0,
+      falloutManaged: 0,
+      peakReach: 210,
+      destructiveViralEvents: 0,
+    },
+    knowledge: {
+      tutorialsPosted: 0,
+      peopleHelped: 0,
+      expertInteractions: 0,
+      usefulThreadsPinned: 0,
+      mentorInteractions: 0,
+    },
+    relationship: {
+      privateRepairs: 0,
+      closeFriendsPreserved: 6,
+      publicConflictsResolved: 0,
+      relationshipLosses: 0,
+      directMessagesSent: 0,
+    },
+    creator: {
+      buildLogsPosted: 0,
+      projectMilestones: 0,
+      collaboratorsFound: 0,
+      opportunitiesConverted: 0,
+      usefulOutputsPublished: 0,
+    },
+    organizer: {
+      eventsHosted: 0,
+      totalAttendance: 0,
+      recurringParticipants: 0,
+      groupChallengesCompleted: 0,
+      offlineActionsCompleted: 0,
+    },
+    escape: {
+      directContactsBuilt: 0,
+      offlineDays: 0,
+      boundariesSet: 0,
+      platformDependenceReduced: 0,
+      exitPlanCompleted: false,
+    },
+  };
 }
 
 function normalizeInterestIds(interestIds: InterestKey[]): InterestKey[] {
@@ -1529,9 +2412,15 @@ function cloneState(state: GameState): GameState {
     ...state,
     interestIds: [...state.interestIds],
     actionHistoryIds: [...state.actionHistoryIds],
+    actionUseDays: Object.fromEntries(
+      Object.entries(state.actionUseDays).map(([key, days]) => [key, [...days]]),
+    ),
+    handRefreshesToday: state.handRefreshesToday,
+    handVariant: state.handVariant,
     metrics: { ...state.metrics },
     followers: { ...state.followers },
     relationships: { ...state.relationships },
+    pathMilestones: clonePathMilestones(state.pathMilestones),
     joinedCommunityIds: [...state.joinedCommunityIds],
     createdGroup: state.createdGroup ? { ...state.createdGroup } : undefined,
     lastActionTags: [...state.lastActionTags],
@@ -1556,7 +2445,26 @@ function cloneState(state: GameState): GameState {
           showGuestLinks: state.report.showGuestLinks,
         }
       : undefined,
-    summary: state.summary ? { ...state.summary, followers: { ...state.summary.followers } } : undefined,
+    summary: state.summary
+      ? {
+          ...state.summary,
+          followers: { ...state.summary.followers },
+          completedMilestones: [...state.summary.completedMilestones],
+          missedThresholds: [...state.summary.missedThresholds],
+        }
+      : undefined,
+  };
+}
+
+function clonePathMilestones(milestones: PathMilestoneState): PathMilestoneState {
+  return {
+    community: { ...milestones.community },
+    viral: { ...milestones.viral },
+    knowledge: { ...milestones.knowledge },
+    relationship: { ...milestones.relationship },
+    creator: { ...milestones.creator },
+    organizer: { ...milestones.organizer },
+    escape: { ...milestones.escape },
   };
 }
 

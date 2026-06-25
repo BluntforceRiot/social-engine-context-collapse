@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Cousin Reply Guy">
+  <rect width="80" height="80" rx="14" fill="#2c1735"/>
+  <circle cx="40" cy="38" r="22" fill="#e0b083"/>
+  <path d="M19 34c4-18 29-24 43-4-14-4-28-1-43 4Z" fill="#52245f"/>
+  <circle cx="32" cy="40" r="3" fill="#140b18"/>
+  <circle cx="50" cy="40" r="3" fill="#140b18"/>
+  <path d="M29 52c8 4 17 3 23-2" fill="none" stroke="#7d3f2f" stroke-width="3" stroke-linecap="round"/>
+  <path d="M58 15h13v12h-7l-6 6v-6h-4V15Z" fill="#f2c85b"/>
+  <path d="M16 66c5-13 13-19 24-19s20 6 24 19" fill="#a64670"/>
+</svg>

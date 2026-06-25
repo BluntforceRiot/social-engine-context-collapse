@@ -23,11 +23,13 @@ import {
   createGroup,
   createInitialState,
   getFailureWarnings,
+  getActionFreshness,
   getDailyActionHand,
   getGroupTradeoffs,
   getVictoryPathProgress,
   joinCommunity,
   playAction,
+  refreshDailyHand,
   resolveReport,
 } from "./sim";
 import type {
@@ -58,18 +60,18 @@ const savedSummaryIds = new Set<string>();
 let resetConfirmUntil = 0;
 let selectedInterestIds: InterestKey[] = [...DEFAULT_STARTING_INTEREST_IDS];
 
-const characterProfiles: Record<RelationshipKey, { initials: string; role: string }> = {
-  "Old Friend Nate": { initials: "ON", role: "close friend / patience meter" },
-  "Coworker Maya": { initials: "CM", role: "credibility witness" },
-  "Aunt JPEG": { initials: "AJ", role: "image-belief turbulence" },
-  "Uncle Signal": { initials: "US", role: "pattern pressure" },
-  "Cousin Reply Guy": { initials: "RG", role: "argument amplifier" },
-  "Former Classmate Darren": { initials: "FD", role: "rare fire starter" },
-  "Local Admin Carol": { initials: "LC", role: "rules and locks" },
-  "Concerned Relative": { initials: "CR", role: "private worry channel" },
-  "Golf Friend Rick": { initials: "GR", role: "hobby advice bridge" },
-  "Linux Forum Mentor": { initials: "LM", role: "useful expert signal" },
-  "Small-Town Neighbor": { initials: "SN", role: "offline context carrier" },
+const characterProfiles: Record<RelationshipKey, { initials: string; role: string; avatar: string }> = {
+  "Old Friend Nate": { initials: "ON", role: "close friend / patience meter", avatar: "old-friend-nate.svg" },
+  "Coworker Maya": { initials: "CM", role: "credibility witness", avatar: "coworker-maya.svg" },
+  "Aunt JPEG": { initials: "AJ", role: "image-belief turbulence", avatar: "aunt-jpeg.svg" },
+  "Uncle Signal": { initials: "US", role: "pattern pressure", avatar: "uncle-signal.svg" },
+  "Cousin Reply Guy": { initials: "RG", role: "argument amplifier", avatar: "cousin-reply-guy.svg" },
+  "Former Classmate Darren": { initials: "FD", role: "rare fire starter", avatar: "former-classmate-darren.svg" },
+  "Local Admin Carol": { initials: "LC", role: "rules and locks", avatar: "local-admin-carol.svg" },
+  "Concerned Relative": { initials: "CR", role: "private worry channel", avatar: "concerned-relative.svg" },
+  "Golf Friend Rick": { initials: "GR", role: "hobby advice bridge", avatar: "golf-friend-rick.svg" },
+  "Linux Forum Mentor": { initials: "LM", role: "useful expert signal", avatar: "linux-forum-mentor.svg" },
+  "Small-Town Neighbor": { initials: "SN", role: "offline context carrier", avatar: "small-town-neighbor.svg" },
 };
 
 const graphLayouts: Record<RelationshipKey, { x: number; y: number }> = {
@@ -253,6 +255,13 @@ function handleCommand(command: string, target: HTMLElement): void {
     render();
     return;
   }
+  if (command === "refresh-hand") {
+    if (game.report || game.summary) return;
+    game = refreshDailyHand(game);
+    playCue("click");
+    render();
+    return;
+  }
   if (command === "join-community") {
     const communityId = target.dataset.communityId;
     if (!communityId) return;
@@ -340,6 +349,9 @@ function routeFromHash(): void {
     game = createDemoState("main");
     screen = "community";
   } else if (route === "create") {
+    game = createInitialState(selectedInterestIds);
+    screen = "create";
+  } else if (route === "demo-manage-group") {
     game = createDemoState("main");
     screen = "create";
   } else if (route === "demo-main") {
@@ -373,8 +385,32 @@ function routeFromHash(): void {
   } else if (route === "demo-victory") {
     game = createDemoState("victory");
     screen = "end";
+  } else if (route.startsWith("demo-victory-")) {
+    const map: Record<string, Parameters<typeof createDemoState>[0]> = {
+      "demo-victory-community": "victoryCommunity",
+      "demo-victory-viral": "victoryViral",
+      "demo-victory-knowledge": "victoryKnowledge",
+      "demo-victory-relationship": "victoryRelationship",
+      "demo-victory-creator": "victoryCreator",
+      "demo-victory-organizer": "victoryOrganizer",
+      "demo-victory-escape": "victoryEscape",
+    };
+    game = createDemoState(map[route] ?? "victory");
+    screen = "end";
   } else if (route === "demo-failure") {
     game = createDemoState("failure");
+    screen = "end";
+  } else if (route.startsWith("demo-failure-")) {
+    const map: Record<string, Parameters<typeof createDemoState>[0]> = {
+      "demo-failure-context": "failureContext",
+      "demo-failure-feed-rot": "failureFeedRot",
+      "demo-failure-unfriended": "failureUnfriended",
+      "demo-failure-niche": "failureNiche",
+      "demo-failure-burnout": "failureBurnout",
+      "demo-failure-reply-guy": "failureReplyGuy",
+      "demo-failure-algorithm": "failureAlgorithm",
+    };
+    game = createDemoState(map[route] ?? "failure");
     screen = "end";
   } else if (route === "game") {
     screen = "game";
@@ -419,7 +455,7 @@ function renderTitle(): string {
       <section class="hero-card">
         <img src="./assets/signalbarn-mark.svg" alt="" class="hero-mark" />
         <p class="eyebrow">Summer into AI Week 2: Independence Engines</p>
-        <h1>The Social Engine:<span>Context Collapse</span></h1>
+        <h1>The Social Engine<span>Context Collapse</span></h1>
         <p class="subtitle">Find your people. Try not to lose the plot.</p>
         <p class="pitch">A sharp card-and-graph strategy sim about the old magic of online communities and the absurd machinery of the feed.</p>
         <div class="hero-actions">
@@ -438,7 +474,7 @@ function renderTitle(): string {
             ${STARTING_INTERESTS.map(renderInterestButton).join("")}
           </div>
         </section>
-        <p class="small-note">v0.4.0 full systems rebuild. Fictional platform. No real social-network branding. Local browser storage only.</p>
+        <p class="small-note">v1.0 submission build · Summer into AI Week 2: Independence Engines. Fictional platform. Local browser storage only.</p>
       </section>
       <aside class="title-preview" aria-label="SignalBarn preview">
         <div class="browser-chrome"><span></span><span></span><span></span><strong>signalbarn.local</strong></div>
@@ -497,8 +533,8 @@ function renderCredits(): string {
             ${howCard("Original implementation", "The Social Engine event logic, UI integration, writing, and Qwen guest avatar are original to this game.")}
             ${howCard("No copied files", "No Founding Father A.I. code, artwork, generated chat logs, private keys, deployment secrets, logos, or non-public materials are copied.")}
             ${howCard("Third-party notices", "THIRD_PARTY_NOTICES.md documents the competitor reference, the public source path listed by the article, and the no-direct-reuse boundary.")}
-            ${howCard("Current build", "v0.4.0 full systems rebuild. Qwen reference states, links, docs, and tests are preserved inside the larger balance pass.")}
-            ${howCard("Repo / demo", "Repo and demo URLs are listed in the README/submission notes when deployment is approved. Codex did not push or deploy this build.")}
+            ${howCard("Current build", "v1.0 submission build. Seven path endings use explicit milestones, local run history, and a scripted Qwen competitor reference.")}
+            ${howCard("Demo / source", "Demo: bluntforceriot.github.io/social-engine-context-collapse/. Source: github.com/BluntforceRiot/social-engine-context-collapse.")}
           </div>
         </section>
       </section>
@@ -600,8 +636,9 @@ function renderGame(): string {
               <p class="eyebrow">Action Cards</p>
               <h3>Daily hand: pick one.</h3>
             </div>
+            <button data-ui="refresh-hand">${game.handRefreshesToday ? "Refresh + heat" : "Refresh Free"}</button>
           </div>
-          <p class="hand-note">Your interests bias this hand; pressure cards rotate in when the feed gets loud.</p>
+          <p class="hand-note">One relationship/community, one knowledge/creator, one growth/viral, one repair/boundary, one interest card, one wildcard.</p>
           <div class="action-list">
             ${dailyHand.map(renderActionCard).join("")}
           </div>
@@ -615,6 +652,7 @@ function renderGame(): string {
 
 function renderActionCard(action: ActionCard): string {
   const meta = describeAction(action);
+  const freshness = getActionFreshness(game, action.id);
   const selected = game.lastActionId === action.id ? "selected" : "";
   return `
     <button class="action-card ${selected}" data-ui="play-action" data-action-id="${action.id}">
@@ -633,6 +671,7 @@ function renderActionCard(action: ActionCard): string {
         <b>${escapeHtml(meta.upside)}</b>
         <b>${escapeHtml(meta.risk)}</b>
       </div>
+      <em class="freshness ${freshness.label.toLowerCase().replaceAll(" ", "-")}">${escapeHtml(freshness.label)}</em>
     </button>
   `;
 }
@@ -797,10 +836,21 @@ function renderEndScreen(): string {
         <p class="headline">${escapeHtml(summary.headline)}</p>
         <div class="summary-grid">
           ${summaryItem("Final Score", summary.score.toLocaleString())}
-          ${summaryItem("Top Path", extractTopPath(summary.title))}
+          ${
+            summary.outcome === "failure"
+              ? summaryItem("Failure Cause", summary.failureCause ?? summary.title)
+              : summaryItem("Primary Ending", summary.primaryEnding)
+          }
+          ${
+            summary.secondaryEnding
+              ? summaryItem("Hybrid Path", summary.secondaryEnding)
+              : summaryItem("Strongest Remaining Path", summary.strongestRemainingPath)
+          }
           ${summaryItem("Day Reached", String(summary.day))}
           ${summaryItem("Trust", String(summary.trust))}
           ${summaryItem("Best Relationship", summary.bestRelationship)}
+          ${summaryItem("Triggering Event", summary.triggeringEvent)}
+          ${summaryItem("Biggest Turning Point", summary.biggestTurningPoint)}
           ${summaryItem("Biggest Viral Event", summary.biggestViralEvent)}
           ${summaryItem("Worst Context Collapse", summary.worstContextCollapse)}
           ${summaryItem("Community", summary.community)}
@@ -808,6 +858,28 @@ function renderEndScreen(): string {
             "Followers",
             `${summary.followers.closeFriends} close, ${summary.followers.nicheMembers} niche, ${summary.followers.dramaFollowers} drama`,
           )}
+        </div>
+        <div class="ending-explain-grid">
+          <article>
+            <h3>Mandatory Milestones Completed</h3>
+            ${
+              summary.completedMilestones.length
+                ? `<ul>${summary.completedMilestones.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+                : "<p>No path completed enough mandatory milestones for a clean victory.</p>"
+            }
+          </article>
+          <article>
+            <h3>Important Thresholds Missed</h3>
+            ${
+              summary.missedThresholds.length
+                ? `<ul>${summary.missedThresholds.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+                : "<p>No major missed thresholds on the credited path.</p>"
+            }
+          </article>
+          <article>
+            <h3>Different Strategy</h3>
+            <p>${escapeHtml(summary.strategyHint)}</p>
+          </article>
         </div>
         <p class="archive-note">Run archived locally in this browser. Clear the archive from Run History when you want a fresh slate.</p>
       </section>
@@ -845,11 +917,11 @@ function renderVictoryPaths(state: GameState): string {
       ${getVictoryPathProgress(state)
         .map(
           (path) => `
-            <div class="path-row ${path.status.toLowerCase().replaceAll(" ", "-")}">
+            <div class="path-row ${path.status.toLowerCase().replaceAll(" ", "-")} ${path.qualifies ? "qualified" : ""}">
               <span>${escapeHtml(path.name)}</span>
               <div><i style="width:${path.value}%"></i></div>
-              <b>${escapeHtml(path.status)}</b>
-              <small>${escapeHtml(path.milestones.slice(0, 2).join(" / "))}</small>
+              <b>${path.qualifies ? "Qualified" : escapeHtml(path.status)}</b>
+              <small>${escapeHtml(path.milestones.slice(0, 3).join(" / "))}</small>
             </div>
           `,
         )
@@ -895,6 +967,7 @@ function renderFeedItem(item: FeedItem): string {
           .map(
             (comment) => `
               <span class="${comment.tone}">
+                ${isRelationshipKey(comment.author) ? renderPersonAvatar(comment.author, "comment") : ""}
                 <b>${escapeHtml(comment.author)}:</b> ${escapeHtml(comment.text)}
               </span>
             `,
@@ -1043,7 +1116,7 @@ function renderGraph(state: GameState): string {
     tone: "healthy" | "risky";
   }>;
   const nodes = [
-    { id: "you", label: "You", x: 50, y: 50, kind: "you", score: 100, avatar: undefined, initials: "SB" },
+    { id: "you", label: "You", x: 50, y: 50, kind: "you", score: 100, avatar: undefined, initials: "SB", avatarSrc: "" },
     ...people.map((name) => {
       const layout = graphLayouts[name];
       return {
@@ -1055,6 +1128,7 @@ function renderGraph(state: GameState): string {
         score: state.relationships[name],
         avatar: undefined,
         initials: characterProfiles[name].initials,
+        avatarSrc: characterAvatarSrc(name),
       };
     }),
     ...groupNodes.slice(0, 4).map((node, index) => ({
@@ -1066,6 +1140,7 @@ function renderGraph(state: GameState): string {
       score: node.id === state.createdGroup?.name ? state.createdGroup.health : 70,
       avatar: node.avatar,
       initials: groupInitials(node.label),
+      avatarSrc: "",
     })),
   ];
   const links = nodes
@@ -1085,6 +1160,8 @@ function renderGraph(state: GameState): string {
       const labelY = node.kind.includes("group") ? node.y - 7.5 : node.y + 10;
       const nodeShape = node.avatar
         ? `<image href="./assets/qwen-franklin-avatar.svg" x="${node.x - radius}" y="${node.y - radius}" width="${radius * 2}" height="${radius * 2}" />`
+        : node.avatarSrc
+          ? `<image class="person-node-avatar" href="${escapeHtml(node.avatarSrc)}" x="${node.x - radius}" y="${node.y - radius}" width="${radius * 2}" height="${radius * 2}" />`
         : `<circle cx="${node.x}" cy="${node.y}" r="${radius}" /><text class="node-initials" x="${node.x}" y="${node.y + 1.2}">${escapeHtml(node.initials)}</text>`;
       return `
         <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""} ${affected} ${selected}" data-node-name="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="Inspect ${escapeHtml(node.id)}">
@@ -1126,12 +1203,16 @@ function renderNodeInspector(state: GameState): string {
   const relationshipValue = state.relationships[node as keyof typeof state.relationships];
   const community = COMMUNITIES.find((item) => item.name === node);
   const group = state.createdGroup?.name === node ? state.createdGroup : undefined;
+  const avatar = isRelationshipKey(node) ? renderPersonAvatar(node, "inspector") : "";
   return `
     <aside class="node-inspector">
-      <span>${hoveredNode ? "Inspecting" : "Recent signal"}</span>
-      <h4>${escapeHtml(node)}</h4>
-      <p>${escapeHtml(nodeBlurb(node))}</p>
-      <b>${relationshipValue ? `Trust ${relationshipValue}` : community ? `${community.tone} community` : group ? `Group health ${group.health}` : "Central node"}</b>
+      ${avatar}
+      <div>
+        <span>${hoveredNode ? "Inspecting" : "Recent signal"}</span>
+        <h4>${escapeHtml(node)}</h4>
+        <p>${escapeHtml(nodeBlurb(node))}</p>
+        <b>${relationshipValue ? `Trust ${relationshipValue}` : community ? `${community.tone} community` : group ? `Group health ${group.health}` : "Central node"}</b>
+      </div>
     </aside>
   `;
 }
@@ -1284,6 +1365,25 @@ function renderGuestAvatar(size: "large" | "modal" | "card" | "feed"): string {
       loading="lazy"
     />
   `;
+}
+
+function renderPersonAvatar(name: RelationshipKey, size: "inspector" | "comment" | "ending" = "comment"): string {
+  return `
+    <img
+      class="person-avatar ${size}"
+      src="${escapeHtml(characterAvatarSrc(name))}"
+      alt="${escapeHtml(name)} avatar"
+      loading="lazy"
+    />
+  `;
+}
+
+function characterAvatarSrc(name: RelationshipKey): string {
+  return `./assets/characters/${characterProfiles[name].avatar}`;
+}
+
+function isRelationshipKey(value: string): value is RelationshipKey {
+  return Object.prototype.hasOwnProperty.call(characterProfiles, value);
 }
 
 function renderGuestLinks(mode: "full" | "compact" = "full"): string {

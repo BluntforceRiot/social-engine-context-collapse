@@ -69,6 +69,22 @@ The full v0.4 pass preserves the Qwen reference foundation while rebuilding the 
 - Graph nodes now use clustered layout, role-based initials, and richer inspector copy to make the recurring cast feel intentional.
 - `npm run playtest:v04` runs seeded browser balance passes across Knowledge/Qwen, Creator, Organizer, and Weird Internet strategies.
 
+## v0.5 Public Submission Candidate
+
+v0.5 turns the visible path labels into real strategy outcomes.
+
+- Each victory path has explicit path-specific counters and mandatory milestones.
+- Primary victories require path progress, mandatory milestones, and no path-specific disqualifier.
+- Hybrids are optional and require both paths to qualify closely; random play no longer produces automatic two-path wins.
+- Positive meters use stronger diminishing returns and targeted decay so good runs do not pin every number at 100.
+- Repeated actions receive visible fatigue labels and reduced positive gains.
+- The daily hand is a compact six-card deck with one free refresh.
+- Viral play now splits into skilled conversion/recovery and reckless heat-chasing.
+- Escape requires a late explicit `Take The Community Independent` action.
+- End screens explain what qualified, what was missed, and how another strategy could have changed the result.
+- Recurring people now use original SVG avatars instead of initials-only identity.
+- Source-level balance runs cover 500 seeds each across nine policies and write `BALANCE_REPORT_SOCIAL_ENGINE_V05.md`.
+
 ## Core Loop
 
 Each run lasts 30 days.

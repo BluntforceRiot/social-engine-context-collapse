@@ -30,14 +30,11 @@ This is not a party-politics simulator. It does not use real politicians, real p
 - Fictional platform and fictional characters.
 - Original SVG/CSS/HTML visuals only.
 - Generated WebAudio only; no copyrighted audio.
-- GitHub Pages workflow included but not deployed/pushed by Codex.
-- v0.3 automated playtests cover three 30-day strategy styles: balanced repair/community, creator/viral pressure, and community organizer.
+- GitHub Pages workflow included. Codex did not push or deploy this build.
 - v0.4.0 adds a credited, scripted Qwen Franklin competitor reference with original dialogue/art and no direct third-party code or asset reuse.
-- v0.4.0 full systems rebuild adds starting interests, a daily action hand, milestone-backed victory progress, meter diminishing returns, safer viral/context-collapse sequencing, group-launch exploit protection, character-avatar graph identity, and a seeded deterministic balance suite.
+- v0.5 adds explicit path-specific milestone state, real victory qualification, targeted meter decay, action repetition fatigue, hand refresh, character SVG avatars, ending explanations, a 4,500-run source balance matrix, and browser assertions.
 
 ## Demo URL
-
-Potential URL after approved deploy:
 
 ```txt
 https://bluntforceriot.github.io/social-engine-context-collapse/
@@ -45,15 +42,13 @@ https://bluntforceriot.github.io/social-engine-context-collapse/
 
 ## Repo URL
 
-Potential repo:
-
 ```txt
 https://github.com/BluntforceRiot/social-engine-context-collapse
 ```
 
 ## Substack URL
 
-Placeholder.
+TBD after the public write-up is published.
 
 ## Scoring Notes
 
@@ -74,37 +69,15 @@ The scoring model rewards balanced reach, trust, agency, belonging, skill credib
 - `npm run playtest:qwen` verifies discoverability, non-mutating preview behavior, active project/source links, joined state, Aunt JPEG responses, About/Credits content, and horizontal overflow at 1440x900, 1366x768, and 1280x720.
 - See `THIRD_PARTY_NOTICES.md` and `docs/submission/COMPETITOR_REFERENCE_QWEN_FRANKLIN.md`.
 
-## v0.4.0 Full Systems Rebuild Notes
+## v0.5 Public Submission Candidate Notes
 
-- Starting interests: players pick up to three identity signals on the title screen.
-- Daily action hand: six available cards per day, biased by interests, current danger, community state, and recent actions.
-- Victory milestones: each victory path is backed by concrete milestones rather than an opaque single formula.
-- Viral/context sequencing: viral and context-collapse checks are separate, and high context risk wins ties.
-- Meter diminishing returns: high positive meters taper near cap so late runs do not snowball linearly.
-- Community/group exploit protection: joined communities remain idempotent and created groups cannot be relaunched for repeated rewards.
-- Character identity pass: graph nodes use clustered layout, initials, roles, and richer inspector copy.
-- Deterministic balance suite: `npm run playtest:v04` runs seeded browser sessions for Knowledge/Qwen, Creator, Organizer, and Weird Internet strategies.
-
-## v0.3 Final Candidate Notes
-
-- Shorter first-run onboarding strip on the main dashboard.
-- Cleaner dashboard hierarchy for graph, feed, meters, warnings, and action cards.
-- Graph legend and improved group-node spacing.
-- Dynamic create-group forecast with audience, risk, health, members, context, and tradeoffs.
-- Stronger viral/context-collapse modals with faster metadata scan.
-- Polished ending screen with explicit local archive note.
-- Small-screen layout pass and mobile screenshot capture.
-- Balance tuning from automated 30-day playtests.
-
-## v0.2 Improvements
-
-- Livelier animated graph with node categories and hover inspector.
-- Feed cards with context state, audience, comments, and reaction indicators.
-- Action cards show strategic upside/risk tags.
-- Community join/create screens expose tradeoffs.
-- Expanded action/event content.
-- Stronger virality metadata and response choices.
-- Visible victory path progress.
-- Failure warning panel.
-- Generated WebAudio cues and mute toggle.
-- GitHub Pages workflow for future approved deployment.
+- Seven victory paths now qualify from explicit mandatory milestones rather than average global meters.
+- The daily hand has six visible slots: relationship/community, knowledge/creator, growth/viral, boundary/repair, interest-biased, and wildcard.
+- One daily hand refresh is free; extra refreshes add small Heat/Burnout pressure.
+- Positive meter gains no longer have a guaranteed +1 near cap, and targeted daily maintenance prevents permanent saturation.
+- Repeated actions show Fresh/Familiar/Audience Tiring/Diminishing Returns labels and receive reduced positive gains.
+- Skilled viral play can earn Viral-primary victories through conversion and recovery; reckless viral play produces materially more hard failures.
+- Ending screens explain primary ending, optional hybrid path, completed milestones, missed thresholds, turning point, preserved relationship, worst collapse, community state, and alternate strategy.
+- Recurring people now have original lightweight SVG profile avatars in the graph, inspector, comments, and ending context.
+- `npm run balance:v05` runs 500 seeds each across random, knowledge, community, relationship, creator, organizer, escape, skilled viral, and reckless viral policies.
+- `npm run playtest:v05` runs browser assertions for routes, path endings, Qwen reference, hand refresh, create/manage group states, ending explanations, and overflow.
