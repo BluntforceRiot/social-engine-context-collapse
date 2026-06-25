@@ -34,6 +34,7 @@ await page.getByRole("button", { name: /Refresh Free/ }).click();
 const handAfter = await page.locator(".action-card strong").allTextContents();
 results.push(check("Refresh changes the hand", handBefore.join("|") !== handAfter.join("|")));
 results.push(check("Fatigue labels shown on cards", (await page.locator(".freshness").count()) === 6));
+results.push(check("Fatigue labels live in the visible action meta row", await freshnessLabelsAreVisible()));
 await page.getByRole("button", { name: "Find People" }).click();
 await page.waitForURL(/#\/community$/);
 await page.reload({ waitUntil: "networkidle" });
@@ -41,6 +42,28 @@ const communityBody = await page.locator("body").innerText();
 results.push(check("Community route reload does not inject demo created group", !communityBody.includes("Barn LAN and Donut Society")));
 results.push(check("Community route reload does not inject joined demo rooms", (await page.getByRole("button", { name: "JOINED" }).count()) === 0));
 await page.getByRole("button", { name: "Back to Run" }).click();
+
+await goto("");
+await page.getByRole("button", { name: "Start Run" }).click();
+await page.getByRole("button", { name: "Find People" }).click();
+await page.waitForURL(/#\/community$/);
+await page.getByRole("button", { name: "Join" }).first().click();
+await page.waitForURL(/#\/game$/);
+results.push(check("Community join replaces chooser hash with game route", page.url().endsWith("#/game")));
+results.push(check("Community join leaves one pending result report", await page.locator(".event-modal").isVisible()));
+await page.evaluate(() => {
+  window.location.hash = "#/community";
+});
+await page.waitForFunction(() => window.location.hash === "#/game");
+results.push(check("Pending report redirects stale community route to game", page.url().endsWith("#/game")));
+results.push(check("Pending report blocks community chooser buttons", (await page.getByRole("button", { name: "Join" }).count()) === 0));
+await page.evaluate(() => {
+  window.location.hash = "#/create";
+});
+await page.waitForFunction(() => window.location.hash === "#/game");
+results.push(check("Pending report redirects stale create route to game", page.url().endsWith("#/game")));
+results.push(check("Pending report blocks create form", (await page.locator("#create-group-form").count()) === 0));
+
 await goto("#/demo-main");
 results.push(check("Demo main starts as an advanced run", (await page.locator("body").innerText()).includes("Day 12 / 30")));
 await page.evaluate(() => {
@@ -249,6 +272,29 @@ async function visibleActionCardCount() {
         rect.bottom <= bounds.bottom + 1
       );
     }).length;
+  });
+}
+
+async function freshnessLabelsAreVisible() {
+  return page.locator(".action-card").evaluateAll((cards) => {
+    return cards.length === 6 && cards.every((card) => {
+      const chip = card.querySelector(".action-meta .freshness");
+      if (!chip) return false;
+      const cardRect = card.getBoundingClientRect();
+      const chipRect = chip.getBoundingClientRect();
+      const style = window.getComputedStyle(chip);
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        Number.parseFloat(style.opacity || "1") > 0.1 &&
+        chipRect.width > 1 &&
+        chipRect.height > 1 &&
+        chipRect.left >= cardRect.left - 1 &&
+        chipRect.right <= cardRect.right + 1 &&
+        chipRect.top >= cardRect.top - 1 &&
+        chipRect.bottom <= cardRect.bottom + 1
+      );
+    });
   });
 }
 

@@ -251,10 +251,18 @@ function handleCommand(command: string, target: HTMLElement): void {
     return;
   }
   if (command === "community") {
+    if (game.report || game.summary) {
+      navigate(game.summary ? "end" : "game", true, true);
+      return;
+    }
     navigate("community");
     return;
   }
   if (command === "create") {
+    if (game.report || game.summary) {
+      navigate(game.summary ? "end" : "game", true, true);
+      return;
+    }
     navigate("create");
     return;
   }
@@ -289,15 +297,16 @@ function handleCommand(command: string, target: HTMLElement): void {
   }
   if (command === "join-community") {
     const communityId = target.dataset.communityId;
-    if (!communityId) return;
+    if (!communityId || game.report || game.summary) return;
     game = joinCommunity(game, communityId);
     playCue("notification");
-    navigate("game", false);
+    navigate("game", true, true);
     return;
   }
   if (command === "create-group") {
+    if (game.report || game.summary) return;
     if (game.createdGroup) {
-      navigate("game", false);
+      navigate("game", true, true);
       return;
     }
     const form = app.querySelector<HTMLFormElement>("#create-group-form");
@@ -320,7 +329,7 @@ function handleCommand(command: string, target: HTMLElement): void {
     };
     game = createGroup(game, group);
     playCue("notification");
-    navigate("game", false);
+    navigate("game", true, true);
     return;
   }
   if (command === "continue-report") {
@@ -365,6 +374,10 @@ function routeFromHash(): void {
   hoveredNode = "";
   previewReport = undefined;
   showVictoryPaths = false;
+  if ((route === "community" || route === "create") && (game.report || game.summary)) {
+    navigate(game.summary ? "end" : "game", true, true);
+    return;
+  }
   if (route === "howto") {
     screen = "howto";
   } else if (route === "credits") {
@@ -447,12 +460,16 @@ function routeFromHash(): void {
   render();
 }
 
-function navigate(next: Screen, updateHash = true): void {
+function navigate(next: Screen, updateHash = true, replaceHash = false): void {
   screen = next;
   showVictoryPaths = false;
   if (updateHash) {
     const route = next === "title" ? "" : `/${next}`;
-    history.pushState(null, "", `#${route}`);
+    if (replaceHash) {
+      history.replaceState(null, "", `#${route}`);
+    } else {
+      history.pushState(null, "", `#${route}`);
+    }
   }
   render();
 }
@@ -692,6 +709,7 @@ function renderActionCard(action: ActionCard): string {
         <i>${escapeHtml(meta.focus)}</i>
         <i>Viral ${action.viralPotential}</i>
         <i>Relationship ${meta.relationshipRisk}</i>
+        <em class="freshness ${freshness.label.toLowerCase().replaceAll(" ", "-")}">${escapeHtml(freshness.label)}</em>
       </div>
       <div class="action-tags">
         ${meta.tags.map((tag) => `<em>${escapeHtml(tag)}</em>`).join("")}
@@ -700,7 +718,6 @@ function renderActionCard(action: ActionCard): string {
         <b>${escapeHtml(meta.upside)}</b>
         <b>${escapeHtml(meta.risk)}</b>
       </div>
-      <em class="freshness ${freshness.label.toLowerCase().replaceAll(" ", "-")}">${escapeHtml(freshness.label)}</em>
     </button>
   `;
 }
@@ -1708,15 +1725,15 @@ function describeAction(action: ActionCard): {
 } {
   const effects = action.effects;
   const focus = action.tags.includes("knowledge")
-    ? "Skill / Cred"
+    ? "Skill"
     : action.tags.includes("community")
-      ? "Community"
+      ? "Room"
       : action.tags.includes("repair")
-        ? "Trust Repair"
+        ? "Repair"
         : action.tags.includes("viral")
           ? "Reach"
           : action.tags.includes("escape")
-            ? "Burnout Relief"
+            ? "Rest"
             : "Mixed";
   const upside =
     (effects.skillCred ?? 0) > 4

@@ -48,6 +48,29 @@ results.push(check("Initial scorePreview equals calculated score", () => {
   return state.scorePreview === sim.calculateScore(state) && state.scorePreview > 0;
 }));
 
+results.push(check("Pending reports block day-changing simulation calls", () => {
+  const pending = sim.joinCommunity(sim.createInitialState(), "linux-forum");
+  const summary = sim.createDemoState("victory");
+  const group = {
+    name: "Blocked Pending Room",
+    premise: "Local creator circle",
+    tone: "technical",
+    rules: "cite your sources",
+    firstPost: "What are you building this week?",
+    members: 0,
+    health: 0,
+  };
+  return (
+    Boolean(pending.report) &&
+    Boolean(summary.summary) &&
+    sim.joinCommunity(pending, "coding-circle") === pending &&
+    sim.createGroup(pending, group) === pending &&
+    sim.refreshDailyHand(pending) === pending &&
+    sim.playAction(pending, "share-tip") === pending &&
+    sim.playAction(summary, "share-tip") === summary
+  );
+}));
+
 results.push(check("Community join report shows actual clamped deltas", () => {
   const before = sim.createInitialState();
   before.metrics.skillCred = 95;

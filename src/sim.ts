@@ -422,6 +422,9 @@ export function getDailyActionHand(state: GameState): ActionCard[] {
 }
 
 export function refreshDailyHand(state: GameState): GameState {
+  if (state.report || state.summary) {
+    return state;
+  }
   const next = cloneState(state);
   next.handRefreshesToday += 1;
   next.handVariant += 1 + next.day;
@@ -444,6 +447,9 @@ export function getActionFreshness(state: GameState, actionId: string): {
 }
 
 export function playAction(state: GameState, actionId: string): GameState {
+  if (state.report || state.summary) {
+    return state;
+  }
   const action = getAction(actionId);
   if (!action || action.opens) {
     return state;
@@ -509,6 +515,9 @@ export function playAction(state: GameState, actionId: string): GameState {
 }
 
 export function joinCommunity(state: GameState, communityId: string): GameState {
+  if (state.report || state.summary) {
+    return state;
+  }
   const community = getCommunity(communityId);
   if (!community) {
     return state;
@@ -576,7 +585,7 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
 }
 
 export function createGroup(state: GameState, group: CreatedGroup): GameState {
-  if (state.createdGroup) {
+  if (state.report || state.summary || state.createdGroup) {
     return state;
   }
   const before = cloneState(state);
