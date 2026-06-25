@@ -12,8 +12,10 @@
     "screenshots:v01": "node scripts/capture-v01-screenshots.mjs",
     "screenshots:v02": "node scripts/capture-v02-screenshots.mjs",
     "screenshots:v03": "node scripts/capture-v03-screenshots.mjs",
+    "screenshots:v04": "node scripts/capture-v04-screenshots.mjs",
     "screenshots:qwen": "node scripts/capture-qwen-cameo-screenshots.mjs",
     "playtest:v03": "node scripts/playtest-v03.mjs",
+    "playtest:v04": "node scripts/playtest-v04-balance.mjs",
     "playtest:qwen": "node scripts/playtest-qwen-cameo.mjs"
   },
   "devDependencies": {

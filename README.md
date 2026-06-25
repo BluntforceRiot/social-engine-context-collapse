@@ -4,7 +4,7 @@ Find your people. Try not to lose the plot.
 
 The Social Engine: Context Collapse is a static browser card-and-graph strategy sim about using a fictional social platform, SignalBarn, to build community, gain agency, survive virality, and avoid context collapse.
 
-Current version: v0.4.0 Qwen Franklin competitor-reference foundation.
+Current version: v0.4.0 full systems rebuild with Qwen Franklin reference preserved.
 
 Built for Summer into AI Week 2: Independence Engines.
 
@@ -34,7 +34,7 @@ npm run preview
 
 ## How To Play
 
-A run lasts 30 days. Each day you choose one action card, the social graph reacts, a feed event or viral fallout card may appear, and the core meters update.
+A run lasts 30 days. Choose up to three starting interests, then each day pick one card from a six-card hand. The hand is biased by interests, current pressure, and recent actions so runs have identity without becoming a deck-management game.
 
 Core actions include posting updates, sharing tutorials, joking, replying to threads, joining communities, creating a group, moderating, hosting events, repairing relationships, deleting posts, blocking drama, and touching grass.
 
@@ -42,13 +42,14 @@ The meters are Reach, Trust, Agency, Belonging, Drama, Burnout, Algorithm Heat, 
 
 Losing drama followers can be healthy. Losing close friends can be devastating.
 
-Victory paths include Community, Viral, Knowledge, Relationship, Creator, Organizer, and Escape. Failure endings include Context Collapse, Feed Rot, Unfriended by Christmas, Niche Capture, Burnout Spiral, Reply Guy Singularity, and Algorithm Dependent.
+Victory paths include Community, Viral, Knowledge, Relationship, Creator, Organizer, and Escape. Each path now tracks concrete milestones such as trusted rooms, skill credibility, low heat, events hosted, and close ties preserved. Failure endings include Context Collapse, Feed Rot, Unfriended by Christmas, Niche Capture, Burnout Spiral, Reply Guy Singularity, and Algorithm Dependent.
 
-The v0.4.0 reference foundation includes the v0.3 final-candidate game loop plus a scripted Qwen Franklin guest signal with original Social Engine writing/art, an unlockable Founders & Future Society community, an Aunt JPEG media-literacy context-collapse event, and a rebuilt About/Credits page with a non-scoring event preview.
+The v0.4.0 rebuild adds starting interests, a daily action hand, milestone-backed victory progress, meter diminishing returns, corrected viral/context-collapse sequencing, create-group exploit protection, improved character identity in the graph, and a deterministic balance suite. It preserves the scripted Qwen Franklin guest signal with original Social Engine writing/art, an unlockable Founders & Future Society community, an Aunt JPEG media-literacy context-collapse event, and the About/Credits non-scoring event preview.
 
 ## Controls
 
-- Click action cards to play a day.
+- Pick starting interests on the title screen.
+- Click one daily action-card hand option to play a day.
 - Hover graph nodes to inspect relationships.
 - Choose fallout responses when viral/context-collapse modal appears.
 - `M`: mute/unmute generated audio.
@@ -75,7 +76,7 @@ There is no backend, login, tracking, analytics, or online leaderboard.
 
 ## Public Demo Notes
 
-This is a v0.4.0 foundation build, not the completed full v0.4 systems rebuild. It preserves the v0.3 final-candidate loop and adds the credited Qwen Franklin competitor reference so the larger victory-system and balance pass can build on it safely.
+This is the v0.4.0 full systems rebuild. It remains a static browser game with no backend, login, tracking, analytics, or online leaderboard.
 
 All platform, character, and community names are fictional. The game does not use Facebook, Meta, Twitter/X, Reddit, TikTok, or any real platform branding, logos, UI clones, icons, trademarked visuals, or exact layouts.
 
@@ -85,13 +86,11 @@ The Qwen Franklin guest signal is a friendly competitor reference to Myles's Fou
 https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in
 ```
 
-The `Visit Founding Father A.I.` link is active and opens in a new tab with `target="_blank"` and `rel="noopener noreferrer"`. The public article lists this source path:
+The `Visit Founding Father A.I.` and `View Source` links are active and open in a new tab with `target="_blank"` and `rel="noopener noreferrer"`.
 
 ```txt
 https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father
 ```
-
-The public UI still does not render a `View Source` button in this foundation build; the implementation retains an optional source URL field for later use if that link should become an in-game button.
 
 No Founding Father A.I. code, assets, model outputs, chat logs, private keys, deployment secrets, logos, or non-public materials are reused. The Qwen event writing, TypeScript integration, community card, feed cards, About/Credits page, and SVG guest avatar are original to The Social Engine. See `THIRD_PARTY_NOTICES.md` and `docs/submission/COMPETITOR_REFERENCE_QWEN_FRANKLIN.md`.
 
@@ -110,12 +109,12 @@ The Aunt JPEG event can follow public Qwen sharing/guest-post paths and keeps th
 
 ## Screenshots
 
-Generate v0.3 screenshots after starting preview:
+Generate v0.4 screenshots after starting preview:
 
 ```sh
 npm run build
 npm run preview
-npm run screenshots:v03
+npm run screenshots:v04
 ```
 
 The screenshot script expects the preview server at `http://127.0.0.1:4173/` by default and verifies that it is pointed at The Social Engine before capturing. Set `SOCIAL_ENGINE_BASE_URL` if using another port.
@@ -130,14 +129,15 @@ npm run screenshots:qwen
 
 ## Balance Smoke Test
 
-Run three automated 30-day strategy passes against a local preview server:
+Run the older v0.3 smoke or the v0.4 deterministic balance suite against a local preview server:
 
 ```sh
 npm run preview
 npm run playtest:v03
+npm run playtest:v04
 ```
 
-The playtest script writes `PLAYTEST_SOCIAL_ENGINE_V03.txt` locally for the review packet.
+The v0.4 balance suite writes `PLAYTEST_SOCIAL_ENGINE_V04_BALANCE.txt` and uses seeded browser runs across Knowledge/Qwen, Creator, Organizer, and Weird Internet strategies.
 
 Run targeted Qwen Franklin reference checks:
 
@@ -146,7 +146,7 @@ npm run preview
 npm run playtest:qwen
 ```
 
-The Qwen playtest writes `PLAYTEST_SOCIAL_ENGINE_QWEN_REFERENCE_V2.txt` and verifies discoverability, non-mutating preview behavior, the active project link, absence of source-link UI while no source URL is configured, joined-state lockout, Aunt JPEG responses, About/Credits content, and horizontal overflow checks at 1440x900, 1366x768, and 1280x720.
+The Qwen playtest writes `PLAYTEST_SOCIAL_ENGINE_QWEN_REFERENCE_V2.txt` and verifies discoverability, non-mutating preview behavior, active project/source links, joined-state lockout, Aunt JPEG responses, About/Credits content, and horizontal overflow checks at 1440x900, 1366x768, and 1280x720.
 
 ## GitHub Pages
 

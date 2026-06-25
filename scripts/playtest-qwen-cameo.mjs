@@ -4,6 +4,7 @@ import path from "node:path";
 
 const baseUrl = process.env.SOCIAL_ENGINE_BASE_URL ?? "http://127.0.0.1:4173/";
 const projectUrl = "https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in";
+const sourceUrl = "https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father";
 const outputPath = path.resolve("PLAYTEST_SOCIAL_ENGINE_QWEN_REFERENCE_V2.txt");
 
 const browser = await chromium.launch();
@@ -23,16 +24,17 @@ await goto("#/demo-qwen-invitation");
 await assertQwenInvitation("Demo route invitation");
 results.push(check("Invitation has four choices", (await page.locator('[data-ui="respond"]').count()) === 4));
 await assertProjectLink("Invitation project link");
-await assertNoSourceLinkUi("Invitation has no source-link placeholder UI");
+await assertSourceLink("Invitation source link");
+await assertNoMissingLinkUi("Invitation has no source-link placeholder UI");
 
 await goto("");
 await page.getByRole("button", { name: "Start Run" }).click();
 for (let index = 0; index < 7; index += 1) {
-  await playAction("share-tip");
+  await playQualifyingAction();
   results.push(check(`No Qwen invitation before Day ${index + 2}`, (await qwenInvitationVisible()) === false));
   await resolveCurrentReport();
 }
-await playAction("share-tip");
+await playQualifyingAction();
 results.push(check("Invitation reachable during qualifying run by Day 8", await qwenInvitationVisible()));
 
 await goto("");
@@ -43,6 +45,7 @@ await page.getByRole("button", { name: "Preview Qwen Franklin Event" }).click();
 results.push(check("Preview event opens from About/Credits", await page.locator('[data-preview="qwen"]').isVisible()));
 results.push(check("Preview choices are non-scoring disabled buttons", (await page.locator(".preview-choices button:disabled").count()) === 4));
 await assertProjectLink("Preview project link");
+await assertSourceLink("Preview source link");
 await page.getByRole("button", { name: "Close Preview" }).click();
 await goto("#/game");
 results.push(check("Preview event does not mutate run day", (await currentDayLabel()) === dayBeforePreview));
@@ -59,6 +62,7 @@ results.push(check("Aunt JPEG event has five responses", (await page.locator('[d
 results.push(check("Credited-project response is visible", await page.locator('[data-ui="respond"][data-response="letProjectSpeak"]', { hasText: "Open the Credited Project" }).isVisible()));
 results.push(check("Old credit-note response text is absent", (await page.getByText(["Point to", "the credit note"].join(" ")).count()) === 0));
 await assertProjectLink("Aunt JPEG project link");
+await assertSourceLink("Aunt JPEG source link");
 const popupPromise = page.waitForEvent("popup");
 await page.locator('[data-ui="respond"][data-response="letProjectSpeak"]').click();
 const popup = await popupPromise;
@@ -70,8 +74,8 @@ results.push(check("Open Credited Project resolves the response", (await page.lo
 await goto("#/credits");
 results.push(check("Credits page shows competitor-reference card", await page.getByText("GUEST SIGNAL FROM THE COMPETITION").first().isVisible()));
 await assertProjectLink("Credits project link");
-results.push(check("Source button is absent while source URL is empty", (await page.getByText("View Source").count()) === 0));
-await assertNoSourceLinkUi("Credits has no source-link placeholder UI");
+await assertSourceLink("Credits source link");
+await assertNoMissingLinkUi("Credits has no source-link placeholder UI");
 
 for (const viewport of [
   { width: 1440, height: 900 },
@@ -119,6 +123,18 @@ async function playAction(actionId) {
   await page.locator(`[data-ui="play-action"][data-action-id="${actionId}"]`).click();
 }
 
+async function playQualifyingAction() {
+  const candidates = ["share-tip", "ask-linux-help", "tiny-build-log", "ask-expert", "pin-useful-thread", "join-community"];
+  for (const actionId of candidates) {
+    const action = page.locator(`[data-ui="play-action"][data-action-id="${actionId}"]`).first();
+    if (await action.count()) {
+      await action.click();
+      return;
+    }
+  }
+  await page.locator('[data-ui="play-action"]').first().click();
+}
+
 async function qwenInvitationVisible() {
   return page.getByText("QWEN FRANKLIN HAS SENT YOU AN INVITATION").isVisible().catch(() => false);
 }
@@ -161,7 +177,17 @@ async function assertProjectLink(name) {
   results.push(check(`${name} uses noopener noreferrer`, rel?.includes("noopener") && rel?.includes("noreferrer")));
 }
 
-async function assertNoSourceLinkUi(name) {
+async function assertSourceLink(name) {
+  const link = page.getByRole("link", { name: "View Source" }).first();
+  const href = await link.getAttribute("href");
+  const target = await link.getAttribute("target");
+  const rel = await link.getAttribute("rel");
+  results.push(check(`${name} is active and correct`, href === sourceUrl));
+  results.push(check(`${name} opens in a new tab`, target === "_blank"));
+  results.push(check(`${name} uses noopener noreferrer`, rel?.includes("noopener") && rel?.includes("noreferrer")));
+}
+
+async function assertNoMissingLinkUi(name) {
   const bodyText = await page.locator("body").innerText();
   const staleTextPattern = new RegExp(
     [
@@ -175,7 +201,6 @@ async function assertNoSourceLinkUi(name) {
   );
   results.push(check(`${name}: no disabled link buttons`, (await page.locator(".button-link.disabled").count()) === 0));
   results.push(check(`${name}: no stale missing-link text`, !staleTextPattern.test(bodyText)));
-  results.push(check(`${name}: source button absent`, (await page.getByRole("link", { name: "View Source" }).count()) === 0));
 }
 
 async function assertSocialEngine(route) {

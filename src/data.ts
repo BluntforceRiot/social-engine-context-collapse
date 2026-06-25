@@ -1,4 +1,4 @@
-import type { ActionCard, Community, FeedEvent, RelationshipKey } from "./types";
+import type { ActionCard, Community, FeedEvent, RelationshipKey, StartingInterest } from "./types";
 
 export const PLATFORM_NAME = "SignalBarn";
 export const RUN_LENGTH_DAYS = 30;
@@ -9,7 +9,83 @@ export const QWEN_FRANKLIN_PUBLIC_CREDIT =
   "Qwen Franklin is a credited competitor reference to Myles's Founding Father A.I. / Qwen Franklin project.";
 export const QWEN_FRANKLIN_GUEST_BANNER = "GUEST SIGNAL FROM MYLES'S FOUNDING FATHER A.I.";
 export const QWEN_FRANKLIN_PROJECT_URL = "https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in";
-export const QWEN_FRANKLIN_REPOSITORY_URL = "";
+export const QWEN_FRANKLIN_REPOSITORY_URL =
+  "https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father";
+
+export const DEFAULT_STARTING_INTEREST_IDS = ["technology", "community", "creator"] as const;
+
+export const STARTING_INTERESTS: StartingInterest[] = [
+  {
+    id: "technology",
+    label: "Technology",
+    description: "Linux, homelab help, and useful error messages.",
+    actionHints: ["share-tip", "ask-linux-help", "ask-expert", "pin-useful-thread"],
+    tags: ["knowledge", "linux", "tutorial", "learning"],
+  },
+  {
+    id: "coding",
+    label: "Coding",
+    description: "Build logs, project credibility, and scope danger.",
+    actionHints: ["tiny-build-log", "share-tip", "ask-expert", "signal-boost"],
+    tags: ["creator", "project", "knowledge"],
+  },
+  {
+    id: "history",
+    label: "History",
+    description: "Local memory, civic tinkering, and labeled provenance.",
+    actionHints: ["pin-useful-thread", "ask-question", "small-town-meetup", "correct-ai-image"],
+    tags: ["knowledge", "community", "reality"],
+  },
+  {
+    id: "retro",
+    label: "Retro Computing",
+    description: "Beige boxes, repair threads, and niche mentors.",
+    actionHints: ["retro-repair", "share-tip", "ask-linux-help", "tiny-build-log"],
+    tags: ["retro", "knowledge", "community"],
+  },
+  {
+    id: "creator",
+    label: "Creator",
+    description: "Projects, useful posts, and opportunity contacts.",
+    actionHints: ["tiny-build-log", "share-tip", "signal-boost", "group-challenge"],
+    tags: ["creator", "project", "viral"],
+  },
+  {
+    id: "community",
+    label: "Community",
+    description: "Rooms, rituals, members, and moderation work.",
+    actionHints: ["join-community", "recruit-members", "moderate-thread", "celebrate-win"],
+    tags: ["community", "builder", "organizer"],
+  },
+  {
+    id: "local",
+    label: "Local Life",
+    description: "Meetups, neighbors, and offline agency.",
+    actionHints: ["small-town-meetup", "host-event", "touch-grass", "post-update"],
+    tags: ["organizer", "offline", "community"],
+  },
+  {
+    id: "hobby",
+    label: "Hobbies",
+    description: "Golf clips, music-board energy, and niche belonging.",
+    actionHints: ["golf-swing-clip", "ask-question", "celebrate-win", "signal-boost"],
+    tags: ["hobby", "golf", "ally"],
+  },
+  {
+    id: "weird",
+    label: "Weird Internet",
+    description: "Funny mysteries, blurry photos, and context risk.",
+    actionHints: ["post-joke", "blurry-camping-photo", "correct-ai-image", "refuse-argue"],
+    tags: ["weird", "context", "reality"],
+  },
+  {
+    id: "relationships",
+    label: "Relationships",
+    description: "Close friends, quiet repair, and fewer public bruises.",
+    actionHints: ["private-message", "dm-person", "apologize", "weekend-offline"],
+    tags: ["relationship", "repair", "private"],
+  },
+];
 
 export const RELATIONSHIPS: RelationshipKey[] = [
   "Old Friend Nate",

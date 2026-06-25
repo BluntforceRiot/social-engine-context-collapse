@@ -1,11 +1,13 @@
 import {
   ACTIONS,
   COMMUNITIES,
+  DEFAULT_STARTING_INTEREST_IDS,
   FEED_EVENTS,
   PLATFORM_NAME,
   QWEN_FRANKLIN_GUEST_BANNER,
   RELATIONSHIPS,
   RUN_LENGTH_DAYS,
+  STARTING_INTERESTS,
 } from "./data";
 import type {
   ActionCard,
@@ -17,11 +19,13 @@ import type {
   FollowerKey,
   Followers,
   GameState,
+  InterestKey,
   MetricKey,
   Metrics,
   RelationshipKey,
   ResponseKey,
   RunSummary,
+  VictoryMilestone,
 } from "./types";
 
 const METRIC_LIMITS: Record<MetricKey, [number, number]> = {
@@ -190,7 +194,10 @@ const responseEffects: Record<
   },
 };
 
-export function createInitialState(): GameState {
+export function createInitialState(
+  interestIds: InterestKey[] = [...DEFAULT_STARTING_INTEREST_IDS],
+): GameState {
+  const safeInterestIds = normalizeInterestIds(interestIds);
   const initialFeed: FeedItem[] = [
     {
       id: "day-0-welcome",
@@ -212,6 +219,8 @@ export function createInitialState(): GameState {
 
   return {
     day: 1,
+    interestIds: safeInterestIds,
+    actionHistoryIds: [],
     metrics: {
       reach: 210,
       trust: 68,
@@ -262,6 +271,65 @@ export function getCommunity(id: string): Community | undefined {
   return COMMUNITIES.find((community) => community.id === id);
 }
 
+export function getDailyActionHand(state: GameState): ActionCard[] {
+  const picked = new Set<string>();
+  const add = (id: string): void => {
+    const action = getAction(id);
+    if (!action) return;
+    if (id === "create-group" && state.createdGroup) return;
+    if (state.actionHistoryIds.slice(0, 2).includes(id) && picked.size > 3) return;
+    picked.add(id);
+  };
+
+  if (state.metrics.burnout > 58) {
+    add(state.day % 2 === 0 ? "weekend-offline" : "touch-grass");
+  } else if (state.metrics.drama > 48 || state.metrics.heat > 54) {
+    add(state.day % 2 === 0 ? "refuse-argue" : "moderate-fight");
+  } else if (state.metrics.trust < 46) {
+    add(state.day % 2 === 0 ? "private-message" : "dm-person");
+  } else if (state.day % 4 === 0) {
+    add(state.day % 3 === 0 ? "signal-boost" : "celebrate-win");
+  }
+
+  if (!state.joinedCommunityIds.length) {
+    add("join-community");
+  } else if (!state.createdGroup) {
+    add(state.day % 2 === 0 ? "create-group" : "recruit-members");
+  } else {
+    add(state.day % 2 === 0 ? "moderate-thread" : "recruit-members");
+  }
+
+  const interestPool = normalizeInterestIds(state.interestIds).flatMap((interestId) => {
+    const interest = STARTING_INTERESTS.find((item) => item.id === interestId);
+    return interest?.actionHints ?? [];
+  });
+  const uniqueInterestPool = Array.from(new Set(interestPool));
+  const offset = stableHash(`${state.day}:${state.lastActionId ?? "fresh"}:${state.interestIds.join("|")}`);
+  for (let index = 0; index < uniqueInterestPool.length && picked.size < 6; index += 1) {
+    add(uniqueInterestPool[(offset + index) % uniqueInterestPool.length]);
+  }
+
+  const fallbackIds = [
+    "share-tip",
+    "ask-question",
+    "tiny-build-log",
+    "post-update",
+    "ask-expert",
+    "pin-useful-thread",
+    "take-break",
+    "delete-post",
+  ];
+  for (const id of fallbackIds) {
+    if (picked.size >= 6) break;
+    add(id);
+  }
+
+  return Array.from(picked)
+    .map((id) => getAction(id))
+    .filter(Boolean)
+    .slice(0, 6) as ActionCard[];
+}
+
 export function playAction(state: GameState, actionId: string): GameState {
   const action = getAction(actionId);
   if (!action || action.opens) {
@@ -271,6 +339,7 @@ export function playAction(state: GameState, actionId: string): GameState {
   const next = cloneState(state);
   next.lastActionId = action.id;
   next.lastActionTags = [...action.tags];
+  next.actionHistoryIds = [action.id, ...next.actionHistoryIds].slice(0, 12);
   next.recentPost = action.title;
   next.affectedNodes = affectedFromRelationships(action.relationships);
 
@@ -329,6 +398,7 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
   }
   next.lastActionId = "join-community";
   next.lastActionTags = ["community", community.tone];
+  next.actionHistoryIds = [`join:${community.id}`, ...next.actionHistoryIds].slice(0, 12);
   next.recentPost = `Joined ${community.name}`;
   next.affectedNodes = community.tone === "healthy" ? ["Local Admin Carol", "Coworker Maya"] : ["Aunt JPEG", "Uncle Signal", "Coworker Maya"];
   applyEffects(next, community.joinEffects);
@@ -374,6 +444,9 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
 }
 
 export function createGroup(state: GameState, group: CreatedGroup): GameState {
+  if (state.createdGroup) {
+    return state;
+  }
   const next = cloneState(state);
   const tradeoffs = getGroupTradeoffs(group.premise, group.tone, group.rules, group.firstPost);
   next.createdGroup = {
@@ -383,6 +456,7 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
   };
   next.lastActionId = "create-group";
   next.lastActionTags = ["community", "builder", group.tone];
+  next.actionHistoryIds = ["create-group", ...next.actionHistoryIds].slice(0, 12);
   next.recentPost = `Created ${group.name}`;
   next.affectedNodes = ["Local Admin Carol", "Old Friend Nate"];
   applyEffects(next, tradeoffs.effects);
@@ -519,26 +593,60 @@ export function calculateScore(state: GameState): number {
   return Math.max(0, Math.round(score));
 }
 
-export function getVictoryPathProgress(state: GameState): Array<{ name: string; value: number; status: string }> {
+export function getVictoryPathProgress(
+  state: GameState,
+): Array<{ name: string; value: number; status: string; milestones: string[] }> {
+  const milestones = getVictoryMilestones(state);
+  const names = ["Community", "Viral", "Knowledge", "Relationship", "Creator", "Organizer", "Escape"];
+  return names.map((name) => {
+    const pathMilestones = milestones.filter((milestone) => milestone.path === name);
+    const value = Math.round(
+      pathMilestones.reduce((sum, milestone) => sum + milestone.progress, 0) /
+        Math.max(1, pathMilestones.length),
+    );
+    const completed = pathMilestones.filter((milestone) => milestone.complete).length;
+    return {
+      name,
+      value: clamp(value, 0, 100),
+      status: labelMilestoneProgress(value, completed),
+      milestones: pathMilestones.map((milestone) => `${milestone.complete ? "Hit" : "Next"}: ${milestone.label}`),
+    };
+  });
+}
+
+export function getVictoryMilestones(state: GameState): VictoryMilestone[] {
   const m = state.metrics;
   const f = state.followers;
-  const values = [
-    {
-      name: "Community",
-      value: Math.round((m.belonging + m.trust + (state.createdGroup?.health ?? state.joinedCommunityIds.length * 18)) / 3),
-    },
-    { name: "Viral", value: Math.round(Math.min(100, m.reach / 35 + m.heat * 0.25 - m.burnout * 0.15)) },
-    { name: "Knowledge", value: Math.round((m.skillCred + m.trust + f.opportunityContacts * 5) / 2.2) },
-    { name: "Relationship", value: Math.round((averageRelationship(state) + f.closeFriends * 7 + m.trust) / 2.2) },
-    { name: "Creator", value: Math.round((m.agency + m.skillCred + f.opportunityContacts * 8) / 2.3) },
-    { name: "Organizer", value: Math.round((m.agency + m.belonging + state.eventsHosted * 18) / 2.2) },
-    { name: "Escape", value: Math.round((m.agency + m.belonging + (100 - m.heat) + (100 - m.burnout)) / 4) },
+  const groupHealth = state.createdGroup?.health ?? state.joinedCommunityIds.length * 18;
+  return [
+    milestone("Community", "trusted room", (m.belonging + groupHealth) / 1.8, m.belonging >= 62 && groupHealth >= 58),
+    milestone("Community", "manageable drama", 100 - m.drama, m.drama <= 36),
+    milestone("Community", "people return", Math.min(100, f.nicheMembers / 3.2), f.nicheMembers >= 240),
+
+    milestone("Viral", "reach without rot", Math.min(100, m.reach / 32), m.reach >= 2400),
+    milestone("Viral", "still trusted", m.trust, m.trust >= 45),
+    milestone("Viral", "not burnt out", 100 - m.burnout, m.burnout <= 64),
+
+    milestone("Knowledge", "skill credibility", m.skillCred, m.skillCred >= 70),
+    milestone("Knowledge", "expert contacts", Math.min(100, f.opportunityContacts * 12), f.opportunityContacts >= 7),
+    milestone("Knowledge", "reality anchored", 100 - m.realityDrift, m.realityDrift <= 42),
+
+    milestone("Relationship", "close ties intact", Math.min(100, f.closeFriends * 12), f.closeFriends >= 7),
+    milestone("Relationship", "average trust", averageRelationship(state), averageRelationship(state) >= 62),
+    milestone("Relationship", "public trust", m.trust, m.trust >= 62),
+
+    milestone("Creator", "agency engine", m.agency, m.agency >= 68),
+    milestone("Creator", "credible output", (m.skillCred + f.opportunityContacts * 8) / 1.8, m.skillCred >= 58 && f.opportunityContacts >= 5),
+    milestone("Creator", "audience beyond drama", Math.min(100, (f.nicheMembers + f.casualFollowers * 0.25) / 3), f.nicheMembers >= 170),
+
+    milestone("Organizer", "events hosted", Math.min(100, state.eventsHosted * 34), state.eventsHosted >= 3),
+    milestone("Organizer", "offline agency", m.agency, m.agency >= 60),
+    milestone("Organizer", "belonging base", m.belonging, m.belonging >= 58),
+
+    milestone("Escape", "low heat", 100 - m.heat, m.heat <= 38),
+    milestone("Escape", "low burnout", 100 - m.burnout, m.burnout <= 42),
+    milestone("Escape", "direct ties", (m.agency + m.belonging + f.closeFriends * 8) / 2.4, m.agency >= 55 && f.closeFriends >= 6),
   ];
-  return values.map((path) => ({
-    ...path,
-    value: clamp(path.value, 0, 100),
-    status: labelProgress(path.value),
-  }));
 }
 
 export function getFailureWarnings(state: GameState): Array<{ name: string; level: "watch" | "danger"; text: string }> {
@@ -905,19 +1013,6 @@ export function createDemoState(
 }
 
 function buildDayReport(state: GameState, action: ActionCard): DayReport {
-  const contextCollapseRisk =
-    state.metrics.heat * 0.28 +
-    state.metrics.drama * 0.26 +
-    state.metrics.realityDrift * 0.16 +
-    (action.tags.includes("context") ? 14 : 0) +
-    (action.tags.includes("argument") ? 10 : 0);
-  const viralChance =
-    action.viralPotential +
-    state.metrics.heat * 0.18 +
-    state.metrics.drama * 0.08 +
-    (state.joinedCommunityIds.length + (state.createdGroup ? 1 : 0)) * 2;
-  const roll = Math.random() * 100;
-
   const qwenInvitation = maybeBuildQwenInvitationReport(state, action);
   if (qwenInvitation) {
     return qwenInvitation;
@@ -928,7 +1023,9 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
     return qwenCollapse;
   }
 
-  if (roll < Math.min(34, viralChance)) {
+  const reportLane = chooseReportLane(state, action);
+
+  if (reportLane === "viral") {
     const viralGain = 420 + Math.round(state.metrics.heat * 6 + action.viralPotential * 18);
     const report: DayReport = {
       kind: "viral",
@@ -954,7 +1051,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
     return report;
   }
 
-  if (roll < Math.min(24, contextCollapseRisk) && state.day > 4) {
+  if (reportLane === "collapse") {
     const report: DayReport = {
       kind: "collapse",
       title: "Context Collapse: The Wrong Room Found It",
@@ -999,6 +1096,38 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
   };
 }
 
+function chooseReportLane(state: GameState, action: ActionCard): "viral" | "collapse" | "feed" {
+  const contextCollapseRisk =
+    state.metrics.heat * 0.26 +
+    state.metrics.drama * 0.3 +
+    state.metrics.realityDrift * 0.2 +
+    (action.tags.includes("context") ? 15 : 0) +
+    (action.tags.includes("family") || action.tags.includes("reality") ? 9 : 0) +
+    (action.tags.includes("argument") ? 11 : 0);
+  const viralChance =
+    action.viralPotential +
+    state.metrics.heat * 0.2 +
+    state.metrics.drama * 0.07 +
+    (state.joinedCommunityIds.length + (state.createdGroup ? 1 : 0)) * 2;
+
+  const collapseLimit = state.day > 4 ? Math.min(30, contextCollapseRisk) : 0;
+  const viralLimit = Math.min(36, viralChance);
+  const collapseTriggered = Math.random() * 100 < collapseLimit;
+  const viralTriggered = Math.random() * 100 < viralLimit;
+
+  if (collapseTriggered && viralTriggered) {
+    const contextHeavy =
+      contextCollapseRisk >= viralChance ||
+      action.tags.includes("context") ||
+      action.tags.includes("family") ||
+      action.tags.includes("reality");
+    return contextHeavy ? "collapse" : "viral";
+  }
+  if (collapseTriggered) return "collapse";
+  if (viralTriggered) return "viral";
+  return "feed";
+}
+
 function maybeBuildQwenInvitationReport(state: GameState, action: ActionCard): DayReport | undefined {
   if (state.qwenInvitationSeen || state.day < 8 || state.day > 14) {
     return undefined;
@@ -1019,8 +1148,13 @@ function maybeBuildQwenInvitationReport(state: GameState, action: ActionCard): D
 
 function hasQwenInterestSignal(state: GameState, action: ActionCard): boolean {
   const interestTags = ["knowledge", "tutorial", "learning", "creator", "project", "retro", "linux", "community", "builder"];
+  const qwenInterestIds: InterestKey[] = ["technology", "coding", "creator", "retro", "history", "community"];
   const interestRooms = ["linux-forum", "coding-circle", "vintage-computer", "local-events", "founders-future-society"];
-  return action.tags.some((tag) => interestTags.includes(tag)) || state.joinedCommunityIds.some((id) => interestRooms.includes(id));
+  return (
+    state.interestIds.some((id) => qwenInterestIds.includes(id)) ||
+    action.tags.some((tag) => interestTags.includes(tag)) ||
+    state.joinedCommunityIds.some((id) => interestRooms.includes(id))
+  );
 }
 
 function buildQwenInvitationReport(affectedNodes: string[]): DayReport {
@@ -1182,8 +1316,27 @@ function makeComments(tags: string[], kind: DayReport["kind"]): FeedItem["commen
 function applyEffects(state: GameState, effects: Partial<Metrics> = {}): void {
   for (const [key, value] of Object.entries(effects) as [MetricKey, number][]) {
     const [min, max] = METRIC_LIMITS[key];
-    state.metrics[key] = clamp(state.metrics[key] + value, min, max);
+    state.metrics[key] = clamp(state.metrics[key] + scaleMetricDelta(key, state.metrics[key], value), min, max);
   }
+}
+
+function scaleMetricDelta(key: MetricKey, current: number, delta: number): number {
+  if (delta <= 0) {
+    return delta;
+  }
+
+  if (key === "reach") {
+    if (current >= 5000) return Math.max(1, Math.round(delta * 0.42));
+    if (current >= 2600) return Math.max(1, Math.round(delta * 0.58));
+    if (current >= 1200) return Math.max(1, Math.round(delta * 0.76));
+    return delta;
+  }
+
+  // Tuned for v0.4: late-run gains still matter, but capped meters stop snowballing.
+  if (current >= 88) return Math.max(1, Math.round(delta * 0.4));
+  if (current >= 74) return Math.max(1, Math.round(delta * 0.6));
+  if (current >= 58) return Math.max(1, Math.round(delta * 0.78));
+  return delta;
 }
 
 function applyFollowers(state: GameState, followers: Partial<Followers> = {}): void {
@@ -1336,11 +1489,20 @@ function labelFollower(key: string): string {
   return labels[key] ?? key;
 }
 
-function labelProgress(value: number): string {
-  if (value >= 74) return "Strong";
-  if (value >= 54) return "Rising";
-  if (value >= 34) return "Unstable";
+function labelMilestoneProgress(value: number, completed: number): string {
+  if (completed >= 3 || value >= 78) return "Strong";
+  if (completed >= 2 || value >= 58) return "Rising";
+  if (completed >= 1 || value >= 38) return "Unstable";
   return "At Risk";
+}
+
+function milestone(path: string, label: string, progress: number, complete: boolean): VictoryMilestone {
+  return {
+    path,
+    label,
+    progress: clamp(progress, 0, 100),
+    complete,
+  };
 }
 
 function averageRelationship(state: GameState): number {
@@ -1348,9 +1510,25 @@ function averageRelationship(state: GameState): number {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function normalizeInterestIds(interestIds: InterestKey[]): InterestKey[] {
+  const allowed = new Set(STARTING_INTERESTS.map((interest) => interest.id));
+  const normalized = Array.from(new Set(interestIds.filter((id) => allowed.has(id)))).slice(0, 3);
+  return normalized.length ? normalized : [...DEFAULT_STARTING_INTEREST_IDS];
+}
+
+function stableHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
 function cloneState(state: GameState): GameState {
   return {
     ...state,
+    interestIds: [...state.interestIds],
+    actionHistoryIds: [...state.actionHistoryIds],
     metrics: { ...state.metrics },
     followers: { ...state.followers },
     relationships: { ...state.relationships },

@@ -27,6 +27,26 @@ export type FollowerKey =
   | "opportunityContacts"
   | "realityRelatives";
 
+export type InterestKey =
+  | "technology"
+  | "coding"
+  | "history"
+  | "retro"
+  | "creator"
+  | "community"
+  | "local"
+  | "hobby"
+  | "weird"
+  | "relationships";
+
+export interface StartingInterest {
+  id: InterestKey;
+  label: string;
+  description: string;
+  actionHints: string[];
+  tags: string[];
+}
+
 export type ResponseKey =
   | "clarify"
   | "private"
@@ -187,8 +207,17 @@ export interface RunSummary {
   headline: string;
 }
 
+export interface VictoryMilestone {
+  path: string;
+  label: string;
+  progress: number;
+  complete: boolean;
+}
+
 export interface GameState {
   day: number;
+  interestIds: InterestKey[];
+  actionHistoryIds: string[];
   metrics: Metrics;
   followers: Followers;
   relationships: Record<RelationshipKey, number>;

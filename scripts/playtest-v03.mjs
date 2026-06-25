@@ -147,13 +147,19 @@ console.log(report);
 console.log(`Wrote ${outputPath}`);
 
 async function playAction(page, actionId, log) {
-  const action = page.locator(`.action-card[data-action-id="${actionId}"]`).first();
+  let action = page.locator(`.action-card[data-action-id="${actionId}"]`).first();
   if (!(await action.count())) {
-    log.push(`Skipped ${actionId}; action not present on current screen.`);
-    await page.goto(`${baseUrl.replace(/\/$/, "/")}#/game`, { waitUntil: "networkidle" });
-    return;
+    action = page.locator(".action-card").first();
+    if (!(await action.count())) {
+      log.push(`Skipped ${actionId}; no action hand present.`);
+      await page.goto(`${baseUrl.replace(/\/$/, "/")}#/game`, { waitUntil: "networkidle" });
+      return;
+    }
+    const fallbackId = await action.getAttribute("data-action-id");
+    log.push(`Preferred ${actionId} was not in today's hand; used ${fallbackId ?? "visible fallback"}.`);
   }
   await action.scrollIntoViewIfNeeded();
+  const playedId = await action.getAttribute("data-action-id");
   await action.click();
 
   if (await page.locator(".community-card").count()) {
@@ -169,7 +175,7 @@ async function playAction(page, actionId, log) {
     await page.locator('[data-ui="create-group"]').click();
     log.push("Created default forecast group.");
   } else {
-    log.push(`Played ${actionId}.`);
+    log.push(`Played ${playedId ?? actionId}.`);
   }
 }
 

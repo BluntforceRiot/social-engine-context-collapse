@@ -53,8 +53,21 @@ The Qwen Franklin crossover is designed as a credited, affectionate guest signal
 - It uses original Social Engine event writing and an original SVG guest avatar.
 - It adds a Knowledge/Agency-leaning community without overpowering the normal score paths.
 - Its unique failure pressure is media-literacy context collapse: relatives confusing a synthetic historical guest account with literal evidence.
-- About/Credits includes an active `Visit Founding Father A.I.` link and a non-scoring `Preview Qwen Franklin Event` button.
-- The public article lists a GitHub source path, but this foundation build keeps the in-game source button hidden while documenting the path in notices/submission docs.
+- About/Credits includes active `Visit Founding Father A.I.` and `View Source` links plus a non-scoring `Preview Qwen Franklin Event` button.
+
+## v0.4 Systems Rebuild
+
+The full v0.4 pass preserves the Qwen reference foundation while rebuilding the game identity and balance surface around it.
+
+- Starting interests give each run a public identity before Day 1.
+- The main dashboard now shows a six-card daily hand instead of the full action catalogue.
+- Daily hands are influenced by selected interests, current pressure, and recent action history.
+- Meter gains use light diminishing returns so high stats still matter without snowballing linearly.
+- Viral events and context-collapse events are resolved through separate risk checks; when both trigger, high context risk can override raw virality.
+- Victory progress is backed by concrete milestones for Community, Viral, Knowledge, Relationship, Creator, Organizer, and Escape paths.
+- Created groups are single-launch anchors; relaunching cannot reapply creation rewards.
+- Graph nodes now use clustered layout, role-based initials, and richer inspector copy to make the recurring cast feel intentional.
+- `npm run playtest:v04` runs seeded browser balance passes across Knowledge/Qwen, Creator, Organizer, and Weird Internet strategies.
 
 ## Core Loop
 

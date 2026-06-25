@@ -3,6 +3,7 @@ import { isMuted, playCue, toggleMute } from "./audio";
 import {
   ACTIONS,
   COMMUNITIES,
+  DEFAULT_STARTING_INTEREST_IDS,
   GROUP_FIRST_POSTS,
   GROUP_PREMISES,
   GROUP_RULES,
@@ -14,6 +15,7 @@ import {
   QWEN_FRANKLIN_REPOSITORY_URL,
   RELATIONSHIPS,
   RUN_LENGTH_DAYS,
+  STARTING_INTERESTS,
 } from "./data";
 import { clearRuns, loadRuns, RUN_HISTORY_KEY, saveRun } from "./storage";
 import {
@@ -21,6 +23,7 @@ import {
   createGroup,
   createInitialState,
   getFailureWarnings,
+  getDailyActionHand,
   getGroupTradeoffs,
   getVictoryPathProgress,
   joinCommunity,
@@ -33,7 +36,9 @@ import type {
   DayReport,
   FeedItem,
   GameState,
+  InterestKey,
   MetricKey,
+  RelationshipKey,
   ResponseKey,
   RunSummary,
   Screen,
@@ -51,6 +56,35 @@ let hoveredNode = "";
 let previewReport: DayReport | undefined;
 const savedSummaryIds = new Set<string>();
 let resetConfirmUntil = 0;
+let selectedInterestIds: InterestKey[] = [...DEFAULT_STARTING_INTEREST_IDS];
+
+const characterProfiles: Record<RelationshipKey, { initials: string; role: string }> = {
+  "Old Friend Nate": { initials: "ON", role: "close friend / patience meter" },
+  "Coworker Maya": { initials: "CM", role: "credibility witness" },
+  "Aunt JPEG": { initials: "AJ", role: "image-belief turbulence" },
+  "Uncle Signal": { initials: "US", role: "pattern pressure" },
+  "Cousin Reply Guy": { initials: "RG", role: "argument amplifier" },
+  "Former Classmate Darren": { initials: "FD", role: "rare fire starter" },
+  "Local Admin Carol": { initials: "LC", role: "rules and locks" },
+  "Concerned Relative": { initials: "CR", role: "private worry channel" },
+  "Golf Friend Rick": { initials: "GR", role: "hobby advice bridge" },
+  "Linux Forum Mentor": { initials: "LM", role: "useful expert signal" },
+  "Small-Town Neighbor": { initials: "SN", role: "offline context carrier" },
+};
+
+const graphLayouts: Record<RelationshipKey, { x: number; y: number }> = {
+  "Old Friend Nate": { x: 30, y: 34 },
+  "Concerned Relative": { x: 24, y: 55 },
+  "Small-Town Neighbor": { x: 35, y: 72 },
+  "Coworker Maya": { x: 50, y: 18 },
+  "Linux Forum Mentor": { x: 70, y: 28 },
+  "Local Admin Carol": { x: 77, y: 50 },
+  "Golf Friend Rick": { x: 66, y: 72 },
+  "Aunt JPEG": { x: 31, y: 84 },
+  "Uncle Signal": { x: 51, y: 86 },
+  "Cousin Reply Guy": { x: 20, y: 22 },
+  "Former Classmate Darren": { x: 82, y: 78 },
+};
 
 const metricLabels: Record<MetricKey, string> = {
   reach: "Reach",
@@ -133,9 +167,24 @@ routeFromHash();
 function handleCommand(command: string, target: HTMLElement): void {
   if (command === "start") {
     previewReport = undefined;
-    game = createInitialState();
+    game = createInitialState(selectedInterestIds);
     hoveredNode = "";
     navigate("game");
+    return;
+  }
+  if (command === "toggle-interest") {
+    const interestId = target.dataset.interestId as InterestKey | undefined;
+    if (!interestId) return;
+    if (selectedInterestIds.includes(interestId)) {
+      if (selectedInterestIds.length > 1) {
+        selectedInterestIds = selectedInterestIds.filter((id) => id !== interestId);
+      }
+    } else if (selectedInterestIds.length < 3) {
+      selectedInterestIds = [...selectedInterestIds, interestId];
+    } else {
+      selectedInterestIds = [...selectedInterestIds.slice(1), interestId];
+    }
+    render();
     return;
   }
   if (command === "title") {
@@ -175,6 +224,10 @@ function handleCommand(command: string, target: HTMLElement): void {
     return;
   }
   if (command === "create") {
+    if (game.createdGroup) {
+      navigate("game");
+      return;
+    }
     navigate("create");
     return;
   }
@@ -209,6 +262,10 @@ function handleCommand(command: string, target: HTMLElement): void {
     return;
   }
   if (command === "create-group") {
+    if (game.createdGroup) {
+      navigate("game", false);
+      return;
+    }
     const form = app.querySelector<HTMLFormElement>("#create-group-form");
     if (!form) return;
     const data = new FormData(form);
@@ -372,7 +429,16 @@ function renderTitle(): string {
           <button data-ui="credits">About / Credits</button>
           <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"} Audio</button>
         </div>
-        <p class="small-note">v0.4.0 Qwen Franklin reference foundation. Fictional platform. No real social-network branding. Local browser storage only.</p>
+        <section class="interest-picker" aria-label="Starting interests">
+          <div>
+            <span>Starting interests</span>
+            <b>Pick up to three. They shape your daily hand.</b>
+          </div>
+          <div class="interest-grid">
+            ${STARTING_INTERESTS.map(renderInterestButton).join("")}
+          </div>
+        </section>
+        <p class="small-note">v0.4.0 full systems rebuild. Fictional platform. No real social-network branding. Local browser storage only.</p>
       </section>
       <aside class="title-preview" aria-label="SignalBarn preview">
         <div class="browser-chrome"><span></span><span></span><span></span><strong>signalbarn.local</strong></div>
@@ -419,7 +485,6 @@ function renderCredits(): string {
             <h3>GUEST SIGNAL FROM THE COMPETITION</h3>
             <p>Myles's Founding Father A.I. put a real language model inside an 8-bit historical interface. That project pushed The Social Engine to think harder about what happens when intelligence lives inside the artifact, not only in the workshop that built it.</p>
             <p>Qwen Franklin appears here as a credited guest signal inside SignalBarn's social graph, where even a helpful AI founder can trigger context collapse.</p>
-            <p class="small-note">${escapeHtml(QWEN_FRANKLIN_PUBLIC_CREDIT)}</p>
             ${renderGuestLinks()}
             <button data-ui="preview-qwen">Preview Qwen Franklin Event</button>
           </div>
@@ -432,7 +497,7 @@ function renderCredits(): string {
             ${howCard("Original implementation", "The Social Engine event logic, UI integration, writing, and Qwen guest avatar are original to this game.")}
             ${howCard("No copied files", "No Founding Father A.I. code, artwork, generated chat logs, private keys, deployment secrets, logos, or non-public materials are copied.")}
             ${howCard("Third-party notices", "THIRD_PARTY_NOTICES.md documents the competitor reference, the public source path listed by the article, and the no-direct-reuse boundary.")}
-            ${howCard("Current build", "v0.4.0 Qwen reference foundation. It is ready to preserve during the larger v0.4 victory-system and balance rebuild.")}
+            ${howCard("Current build", "v0.4.0 full systems rebuild. Qwen reference states, links, docs, and tests are preserved inside the larger balance pass.")}
             ${howCard("Repo / demo", "Repo and demo URLs are listed in the README/submission notes when deployment is approved. Codex did not push or deploy this build.")}
           </div>
         </section>
@@ -470,6 +535,10 @@ function renderGame(): string {
   const joinedCommunities = game.joinedCommunityIds
     .map((id) => COMMUNITIES.find((community) => community.id === id)?.name)
     .filter(Boolean);
+  const dailyHand = getDailyActionHand(game);
+  const interestLabels = STARTING_INTERESTS.filter((interest) => game.interestIds.includes(interest.id))
+    .map((interest) => interest.label)
+    .join(", ");
   return `
     <main class="game-screen">
       <header class="game-header">
@@ -495,6 +564,10 @@ function renderGame(): string {
           <div class="goal-card">
             <span>Current goal</span>
             <b>Find your people without feeding the machine forever.</b>
+          </div>
+          <div class="goal-card interest-summary">
+            <span>Starting interests</span>
+            <b>${escapeHtml(interestLabels || "Mixed Signal")}</b>
           </div>
           <div class="communities-card">
             <h3>Rooms</h3>
@@ -525,11 +598,12 @@ function renderGame(): string {
           <div class="panel-heading">
             <div>
               <p class="eyebrow">Action Cards</p>
-              <h3>Pick one today.</h3>
+              <h3>Daily hand: pick one.</h3>
             </div>
           </div>
+          <p class="hand-note">Your interests bias this hand; pressure cards rotate in when the feed gets loud.</p>
           <div class="action-list">
-            ${ACTIONS.map(renderActionCard).join("")}
+            ${dailyHand.map(renderActionCard).join("")}
           </div>
         </aside>
       </section>
@@ -571,7 +645,7 @@ function renderCommunityChoice(): string {
     <main class="page-shell">
       <nav class="topbar">
         <button data-ui="game">Back to Run</button>
-        <button data-ui="create" class="primary">Create New Group</button>
+        <button data-ui="create" class="primary" ${game.createdGroup ? "disabled" : ""}>${game.createdGroup ? "Group Already Live" : "Create New Group"}</button>
       </nav>
       <section class="manual-panel wide">
         <p class="eyebrow">Community Chooser</p>
@@ -621,6 +695,26 @@ function renderCommunityCard(community: (typeof COMMUNITIES)[number]): string {
 }
 
 function renderCreateGroup(): string {
+  if (game.createdGroup) {
+    return `
+      <main class="page-shell">
+        <nav class="topbar">
+          <button data-ui="community">Join Rooms</button>
+          <button data-ui="game" class="primary">Back to Run</button>
+        </nav>
+        <section class="manual-panel">
+          <p class="eyebrow">Create New Group</p>
+          <h2>${escapeHtml(game.createdGroup.name)} is already live.</h2>
+          <p class="body-copy">One created group can anchor a run. Grow it through recruit, moderation, challenge, and event actions instead of relaunching for repeated rewards.</p>
+          <div class="forecast-panel">
+            <span>Current group</span>
+            <b>${game.createdGroup.members} members / ${game.createdGroup.health} health</b>
+            <p>${escapeHtml(game.createdGroup.premise)} / ${escapeHtml(game.createdGroup.tone)} / ${escapeHtml(game.createdGroup.rules)}</p>
+          </div>
+        </section>
+      </main>
+    `;
+  }
   const forecast = getGroupTradeoffs(GROUP_PREMISES[0], GROUP_TONES[0], GROUP_RULES[0], GROUP_FIRST_POSTS[0]);
   return `
     <main class="page-shell">
@@ -637,7 +731,7 @@ function renderCreateGroup(): string {
           <div class="forecast-panel legacy-forecast">
             <span>Default launch forecast</span>
             <b>${forecast.members} starting members / ${forecast.health} health</b>
-            <p>${escapeHtml(forecast.audience)} · ${forecast.context}</p>
+            <p>${escapeHtml(forecast.audience)} / ${forecast.context}</p>
             <div class="effects-list small">
               ${Object.entries(forecast.effects).map(([key, value]) => `<span>${value && value > 0 ? "+" : ""}${value} ${escapeHtml(key)}</span>`).join("")}
             </div>
@@ -755,6 +849,7 @@ function renderVictoryPaths(state: GameState): string {
               <span>${escapeHtml(path.name)}</span>
               <div><i style="width:${path.value}%"></i></div>
               <b>${escapeHtml(path.status)}</b>
+              <small>${escapeHtml(path.milestones.slice(0, 2).join(" / "))}</small>
             </div>
           `,
         )
@@ -920,7 +1015,7 @@ function renderPreviewReport(report: DayReport): string {
 }
 
 function renderGraph(state: GameState): string {
-  const people = RELATIONSHIPS.slice(0, 9);
+  const people = RELATIONSHIPS;
   const groupNodes = [
     ...state.joinedCommunityIds.map((id) => {
       const community = COMMUNITIES.find((item) => item.id === id);
@@ -948,17 +1043,18 @@ function renderGraph(state: GameState): string {
     tone: "healthy" | "risky";
   }>;
   const nodes = [
-    { id: "you", label: "You", x: 50, y: 50, kind: "you", score: 100, avatar: undefined },
-    ...people.map((name, index) => {
-      const angle = (Math.PI * 2 * index) / people.length - Math.PI / 2;
+    { id: "you", label: "You", x: 50, y: 50, kind: "you", score: 100, avatar: undefined, initials: "SB" },
+    ...people.map((name) => {
+      const layout = graphLayouts[name];
       return {
         id: name,
         label: shortName(name),
-        x: 50 + Math.cos(angle) * 34,
-        y: 50 + Math.sin(angle) * 34,
+        x: layout.x,
+        y: layout.y,
         kind: nodeKind(name),
         score: state.relationships[name],
         avatar: undefined,
+        initials: characterProfiles[name].initials,
       };
     }),
     ...groupNodes.slice(0, 4).map((node, index) => ({
@@ -969,6 +1065,7 @@ function renderGraph(state: GameState): string {
       kind: node.avatar ? "qwen-group" : node.tone === "risky" ? "risky-group" : "group",
       score: node.id === state.createdGroup?.name ? state.createdGroup.health : 70,
       avatar: node.avatar,
+      initials: groupInitials(node.label),
     })),
   ];
   const links = nodes
@@ -985,13 +1082,14 @@ function renderGraph(state: GameState): string {
       const affected = state.affectedNodes.includes(node.id) ? "affected" : "";
       const selected = hoveredNode === node.id ? "selected" : "";
       const radius = node.kind === "you" ? 7 : node.kind.includes("group") ? 6 : 5;
+      const labelY = node.kind.includes("group") ? node.y - 7.5 : node.y + 10;
       const nodeShape = node.avatar
         ? `<image href="./assets/qwen-franklin-avatar.svg" x="${node.x - radius}" y="${node.y - radius}" width="${radius * 2}" height="${radius * 2}" />`
-        : `<circle cx="${node.x}" cy="${node.y}" r="${radius}" />`;
+        : `<circle cx="${node.x}" cy="${node.y}" r="${radius}" /><text class="node-initials" x="${node.x}" y="${node.y + 1.2}">${escapeHtml(node.initials)}</text>`;
       return `
         <g class="graph-node ${node.kind} ${node.score < 35 ? "strained" : ""} ${affected} ${selected}" data-node-name="${escapeHtml(node.id)}" tabindex="0" role="button" aria-label="Inspect ${escapeHtml(node.id)}">
           ${nodeShape}
-          <text x="${node.x}" y="${node.y + 10}">${escapeHtml(node.label)}</text>
+          <text class="node-label" x="${node.x}" y="${labelY}">${escapeHtml(node.label)}</text>
         </g>
       `;
     })
@@ -1162,6 +1260,21 @@ function howCard(title: string, body: string): string {
   `;
 }
 
+function renderInterestButton(interest: (typeof STARTING_INTERESTS)[number]): string {
+  const selected = selectedInterestIds.includes(interest.id);
+  return `
+    <button
+      class="interest-chip ${selected ? "selected" : ""}"
+      data-ui="toggle-interest"
+      data-interest-id="${interest.id}"
+      aria-pressed="${selected}"
+      title="${escapeHtml(interest.description)}"
+    >
+      ${escapeHtml(interest.label)}
+    </button>
+  `;
+}
+
 function renderGuestAvatar(size: "large" | "modal" | "card" | "feed"): string {
   return `
     <img
@@ -1320,6 +1433,10 @@ function nodeKind(name: string): string {
 }
 
 function nodeBlurb(name: string): string {
+  const profile = characterProfiles[name as RelationshipKey];
+  if (profile) {
+    return `${profile.role}. ${relationshipFlavor(name)}`;
+  }
   const blurbs: Record<string, string> = {
     "Old Friend Nate": "Loyal, allergic to recruitment, excellent early warning system.",
     "Coworker Maya": "Values credibility and quietly remembers public chaos.",
@@ -1337,8 +1454,34 @@ function nodeBlurb(name: string): string {
   return blurbs[name] ?? "A visible part of your current independence engine.";
 }
 
+function relationshipFlavor(name: string): string {
+  const blurbs: Record<string, string> = {
+    "Old Friend Nate": "Loyal, allergic to recruitment, excellent early warning system.",
+    "Coworker Maya": "Values credibility and quietly remembers public chaos.",
+    "Aunt JPEG": "Believes suspicious images and resists correction with warmth and force.",
+    "Uncle Signal": "High confidence, low evidence filter, frequent pattern weather.",
+    "Cousin Reply Guy": "Accidentally boosts every argument by refusing to leave.",
+    "Former Classmate Darren": "Rarely appears, somehow arrives with a match.",
+    "Local Admin Carol": "Moderates unpredictably but appreciates visible rules.",
+    "Concerned Relative": "DMs when the public thread gets weird.",
+    "Golf Friend Rick": "Useful hobby connection with mysterious posture language.",
+    "Linux Forum Mentor": "Calm expert energy. Strong defense against feed rot.",
+    "Small-Town Neighbor": "Local context node. Knows which posts will travel offline.",
+  };
+  return blurbs[name] ?? "A visible part of your current independence engine.";
+}
+
 function shortName(name: string): string {
   return name.replace("Former Classmate ", "").replace("Small-Town ", "").replace("Linux Forum ", "");
+}
+
+function groupInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter((part) => /^[A-Za-z]/.test(part))
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 function makeGroupName(premise: string, tone: string): string {

@@ -7,13 +7,13 @@
 - Public project link: https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in
 - Source link listed by the article: https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father
 - Reference status: friendly competitor reference for a competition that rewards building in conversation with other competitors' work.
-- Current reuse posture: original Social Engine implementation; no direct code/art asset reuse unless a public source/license permits it.
+- Current reuse posture: original Social Engine implementation; no direct code/art asset reuse.
 
 ## License And Reuse Status
 
 No Founding Father A.I. code, assets, artwork, model outputs, chat transcripts, private keys, deployment secrets, or logos are reused in the current Social Engine implementation.
 
-The public article lists a GitHub source path, but this build does not directly reuse any Founding Father A.I. source or asset files. The implementation uses original Social Engine dialogue, original TypeScript integration, and an original SVG avatar.
+The public article lists a GitHub source path, and this build links it through the in-game `View Source` button. The game does not directly reuse any Founding Father A.I. source or asset files. The implementation uses original Social Engine dialogue, original TypeScript integration, and an original SVG avatar.
 
 See `THIRD_PARTY_NOTICES.md` for the public notice.
 
@@ -26,10 +26,10 @@ See `THIRD_PARTY_NOTICES.md` for the public notice.
 - Non-scoring About/Credits preview: `Preview Qwen Franklin Event`
 - Original SVG guest avatar: `public/assets/qwen-franklin-avatar.svg`
 - Active button: `Visit Founding Father A.I.`
-- Source button: not rendered in this foundation build; the optional source-link field remains available for later use
+- Active source button: `View Source`
 - Runtime behavior: static, scripted, no LLM call, no API key, no backend, no network request
 
-The project link opens only after a deliberate click using `target="_blank"` and `rel="noopener noreferrer"`.
+The project and source links open only after a deliberate click using `target="_blank"` and `rel="noopener noreferrer"`.
 
 ## What Was Referenced
 
