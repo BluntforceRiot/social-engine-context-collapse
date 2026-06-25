@@ -91,6 +91,12 @@ interface AppliedDeltas {
   relationships: Partial<Record<RelationshipKey, number>>;
 }
 
+interface StateDeltaSummary extends AppliedDeltas {
+  group: Partial<Record<"members" | "health", number>>;
+  counters: Partial<Record<"eventsHosted" | "repairsMade", number>>;
+  milestones: Partial<Record<string, number>>;
+}
+
 const responseEffects: Record<
   ResponseKey,
   {
@@ -443,6 +449,7 @@ export function playAction(state: GameState, actionId: string): GameState {
     return state;
   }
 
+  const before = cloneState(state);
   const next = cloneState(state);
   const freshness = getActionFreshness(next, action.id);
   next.lastActionId = action.id;
@@ -453,7 +460,7 @@ export function playAction(state: GameState, actionId: string): GameState {
   next.affectedNodes = affectedFromRelationships(action.relationships);
 
   if (action.id === "host-event" || action.id === "small-town-meetup") {
-    next.eventsHosted += 1;
+    next.eventsHosted += scaleScoreBearingGain(1, freshness.multiplier);
   }
   if (
     action.id === "apologize" ||
@@ -461,20 +468,25 @@ export function playAction(state: GameState, actionId: string): GameState {
     action.id === "dm-person" ||
     action.id === "refuse-argue"
   ) {
-    next.repairsMade += 1;
+    next.repairsMade += scaleScoreBearingGain(1, freshness.multiplier);
   }
 
   applyEffects(next, action.effects, freshness.multiplier);
   applyFollowers(next, action.followers, freshness.multiplier);
-  applyRelationships(next, action.relationships);
+  applyRelationships(next, action.relationships, freshness.multiplier);
   applyActionMilestones(next, action, freshness.multiplier);
 
   if (next.createdGroup && action.tags.includes("community")) {
-    next.createdGroup.members += action.id === "recruit-members" ? 18 : 9;
-    next.createdGroup.health = clamp(next.createdGroup.health + (action.tags.includes("moderation") ? 7 : 4), 0, 100);
+    const memberGrowth = scaleScoreBearingGain(action.id === "recruit-members" ? 18 : 9, freshness.multiplier);
+    const healthGrowth = scaleScoreBearingGain(action.tags.includes("moderation") ? 7 : 4, freshness.multiplier);
+    next.createdGroup.members += memberGrowth;
+    next.createdGroup.health = clamp(next.createdGroup.health + healthGrowth, 0, 100);
   }
 
   const report = buildDayReport(next, action);
+  const totalEffectsText = summarizeStateDelta(before, next);
+  const flavorEffectsText = report.effectsText.filter((item) => !isNumericDeltaText(item));
+  report.effectsText = [...totalEffectsText, ...flavorEffectsText];
   next.report = report;
   if (freshness.label !== "Fresh") {
     next.report.mechanicalNote = `${next.report.mechanicalNote ? `${next.report.mechanicalNote} ` : ""}${freshness.label}: repeated actions have reduced positive gains and milestone credit this week.`;
@@ -504,6 +516,7 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
   if (state.joinedCommunityIds.includes(community.id)) {
     return state;
   }
+  const before = cloneState(state);
   const next = cloneState(state);
   next.joinedCommunityIds.push(community.id);
   if (community.id === "founders-future-society") {
@@ -515,8 +528,8 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
   next.actionUseDays["join-community"] = [...(next.actionUseDays["join-community"] ?? []), next.day].slice(-12);
   next.recentPost = `Joined ${community.name}`;
   next.affectedNodes = community.tone === "healthy" ? ["Local Admin Carol", "Coworker Maya"] : ["Aunt JPEG", "Uncle Signal", "Coworker Maya"];
-  const effectDeltas = applyEffects(next, community.joinEffects);
-  const followerDeltas = applyFollowers(next, community.joinFollowers);
+  applyEffects(next, community.joinEffects);
+  applyFollowers(next, community.joinFollowers);
   next.pathMilestones.community.memberSupportActions += 1;
   next.pathMilestones.community.recurringContributors += community.tone === "healthy" ? 1 : 0;
   next.pathMilestones.community.helpfulMemberEvents += community.tone === "healthy" ? 1 : 0;
@@ -531,11 +544,7 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
     kind: "feed",
     title: `Joined ${community.name}`,
     body: `${community.hook} Upside: ${community.upside}. Risk: ${community.risk}`,
-    effectsText: summarizeDeltas({
-      metrics: effectDeltas,
-      followers: followerDeltas,
-      relationships: {},
-    }),
+    effectsText: summarizeStateDelta(before, next),
     audience: `${community.name} members and their rivals`,
     context: community.tone === "healthy" ? "Contained" : "Fraying",
     source: "community join",
@@ -570,6 +579,7 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
   if (state.createdGroup) {
     return state;
   }
+  const before = cloneState(state);
   const next = cloneState(state);
   const tradeoffs = getGroupTradeoffs(group.premise, group.tone, group.rules, group.firstPost);
   next.createdGroup = {
@@ -583,8 +593,8 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
   next.actionUseDays["create-group"] = [...(next.actionUseDays["create-group"] ?? []), next.day].slice(-12);
   next.recentPost = `Created ${group.name}`;
   next.affectedNodes = ["Local Admin Carol", "Old Friend Nate"];
-  const effectDeltas = applyEffects(next, tradeoffs.effects);
-  const followerDeltas = applyFollowers(next, tradeoffs.followers);
+  applyEffects(next, tradeoffs.effects);
+  applyFollowers(next, tradeoffs.followers);
   next.pathMilestones.community.memberSupportActions += 1;
   next.pathMilestones.community.recurringContributors += Math.max(1, Math.round(tradeoffs.members / 18));
   next.pathMilestones.organizer.recurringParticipants += Math.max(1, Math.round(tradeoffs.members / 10));
@@ -593,11 +603,7 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
     kind: "feed",
     title: `${group.name} Is Live`,
     body: `The first post is "${group.firstPost}" and the rules say "${group.rules}." It starts as a small independence engine with visible tradeoffs.`,
-    effectsText: summarizeDeltas({
-      metrics: effectDeltas,
-      followers: followerDeltas,
-      relationships: {},
-    }),
+    effectsText: summarizeStateDelta(before, next),
     source: "new group launch",
     audience: tradeoffs.audience,
     context: tradeoffs.context,
@@ -706,6 +712,13 @@ export function advanceDay(state: GameState): GameState {
   next.handRefreshesToday = 0;
   applyDailyMaintenance(next);
   updateImmediateDerivedValues(next);
+  const maintenanceFailure = checkFailure(next);
+  if (maintenanceFailure) {
+    const ending = pickFailureEnding(next, maintenanceFailure);
+    next.summary = buildSummary(next, "failure", ending.title, ending);
+    next.scorePreview = calculateScore(next);
+    return next;
+  }
   next.scorePreview = calculateScore(next);
   return next;
 }
@@ -2033,14 +2046,21 @@ function scaleMilestoneGain(value: number, multiplier: number): number {
   return Math.round(Math.max(scaled, reducedFloor) * 100) / 100;
 }
 
+function scaleScoreBearingGain(value: number, multiplier: number): number {
+  if (value <= 0) return value;
+  return Math.round(value * multiplier);
+}
+
 function applyRelationships(
   state: GameState,
   relationships: Partial<Record<RelationshipKey, number>> = {},
+  multiplier = 1,
 ): Partial<Record<RelationshipKey, number>> {
   const deltas: Partial<Record<RelationshipKey, number>> = {};
   for (const [name, value] of Object.entries(relationships) as [RelationshipKey, number][]) {
     const before = state.relationships[name];
-    state.relationships[name] = clamp(state.relationships[name] + value, 0, 100);
+    const scaledValue = value > 0 ? scaleScoreBearingGain(value, multiplier) : value;
+    state.relationships[name] = clamp(state.relationships[name] + scaledValue, 0, 100);
     const actual = state.relationships[name] - before;
     if (actual) {
       deltas[name] = actual;
@@ -2302,6 +2322,93 @@ function summarizeDeltas(deltas: AppliedDeltas): string[] {
   );
   const summary = [...metricText, ...followerText, ...relationshipText].filter(Boolean);
   return summary.length ? summary : ["No numeric change"];
+}
+
+function summarizeStateDelta(before: GameState, after: GameState): string[] {
+  const deltas = stateDeltaSummary(before, after);
+  const metricText = Object.entries(deltas.metrics).map(([key, value]) => formatDelta(labelMetric(key), value));
+  const followerText = Object.entries(deltas.followers).map(([key, value]) =>
+    formatDelta(labelFollower(key), value),
+  );
+  const relationshipText = Object.entries(deltas.relationships).map(([key, value]) =>
+    formatDelta(key, value),
+  );
+  const groupText = Object.entries(deltas.group).map(([key, value]) =>
+    formatDelta(key === "members" ? "Group Members" : "Group Health", value),
+  );
+  const counterText = Object.entries(deltas.counters).map(([key, value]) =>
+    formatDelta(key === "eventsHosted" ? "Events Hosted" : "Repairs Made", value),
+  );
+  const milestoneText = Object.entries(deltas.milestones).map(([key, value]) =>
+    formatDelta(labelMilestoneDelta(key), value ?? 0),
+  );
+  const summary = [
+    ...metricText,
+    ...followerText,
+    ...relationshipText,
+    ...groupText,
+    ...counterText,
+    ...milestoneText,
+  ].filter(Boolean);
+  return summary.length ? summary : ["No numeric change"];
+}
+
+function stateDeltaSummary(before: GameState, after: GameState): StateDeltaSummary {
+  const group: StateDeltaSummary["group"] = {};
+  const beforeMembers = before.createdGroup?.members ?? 0;
+  const afterMembers = after.createdGroup?.members ?? 0;
+  if (afterMembers - beforeMembers) group.members = afterMembers - beforeMembers;
+  const beforeHealth = before.createdGroup?.health ?? 0;
+  const afterHealth = after.createdGroup?.health ?? 0;
+  if (afterHealth - beforeHealth) group.health = afterHealth - beforeHealth;
+
+  const counters: StateDeltaSummary["counters"] = {};
+  if (after.eventsHosted - before.eventsHosted) counters.eventsHosted = after.eventsHosted - before.eventsHosted;
+  if (after.repairsMade - before.repairsMade) counters.repairsMade = after.repairsMade - before.repairsMade;
+
+  return {
+    metrics: diffNumericRecord(before.metrics, after.metrics),
+    followers: diffNumericRecord(before.followers, after.followers),
+    relationships: diffNumericRecord(before.relationships, after.relationships),
+    group,
+    counters,
+    milestones: diffNumericRecord(flattenMilestones(before.pathMilestones), flattenMilestones(after.pathMilestones)),
+  };
+}
+
+function diffNumericRecord<T extends string>(
+  before: Partial<Record<T, number>>,
+  after: Partial<Record<T, number>>,
+): Partial<Record<T, number>> {
+  const deltas: Partial<Record<T, number>> = {};
+  for (const key of Object.keys(after) as T[]) {
+    const delta = (after[key] ?? 0) - (before[key] ?? 0);
+    if (delta) {
+      deltas[key] = delta;
+    }
+  }
+  return deltas;
+}
+
+function flattenMilestones(milestones: PathMilestoneState): Record<string, number> {
+  const flattened: Record<string, number> = {};
+  for (const [path, values] of Object.entries(milestones)) {
+    for (const [key, value] of Object.entries(values as Record<string, number | boolean>)) {
+      flattened[`${path}.${key}`] = typeof value === "boolean" ? Number(value) : value;
+    }
+  }
+  return flattened;
+}
+
+function labelMilestoneDelta(key: string): string {
+  const [path = "", value = ""] = key.split(".");
+  const pathLabel = path.charAt(0).toUpperCase() + path.slice(1);
+  const valueLabel = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (char) => char.toUpperCase());
+  return `${pathLabel} ${valueLabel}`;
+}
+
+function isNumericDeltaText(value: string): boolean {
+  return /^[+-]?\d+(?:\.\d+)?\s+/.test(value);
 }
 
 function formatDelta(label: string, value: number): string {

@@ -54,7 +54,7 @@ results.push(check("Community join report shows actual clamped deltas", () => {
   before.metrics.trust = 90;
   before.metrics.agency = 80;
   const after = sim.joinCommunity(before, "linux-forum");
-  return reportMatchesStateDelta(before, after, after.report, { relationships: false });
+  return reportMatchesStateDelta(before, after, after.report);
 }));
 
 results.push(check("Create Group report shows actual clamped deltas", () => {
@@ -70,7 +70,15 @@ results.push(check("Create Group report shows actual clamped deltas", () => {
     members: 0,
     health: 0,
   });
-  return reportMatchesStateDelta(before, after, after.report, { relationships: false });
+  return reportMatchesStateDelta(before, after, after.report);
+}));
+
+results.push(check("Action report shows total before/after deltas", () => {
+  const before = sim.createInitialState();
+  before.day = 10;
+  before.qwenInvitationSeen = true;
+  const after = withRandom(0.99, () => sim.playAction(before, "share-tip"));
+  return reportMatchesStateDelta(before, after, after.report);
 }));
 
 results.push(check("Create Group forecast shows actual clamped launch deltas", () => {
@@ -179,9 +187,82 @@ results.push(check("Repeated action milestone credit scales with freshness", () 
   );
 }));
 
+results.push(check("Repeated score-bearing rewards scale relationships counters and group growth", () => {
+  const freshRepairBefore = sim.createInitialState();
+  freshRepairBefore.day = 10;
+  freshRepairBefore.qwenInvitationSeen = true;
+  const repeatedRepairBefore = sim.createInitialState();
+  repeatedRepairBefore.day = 10;
+  repeatedRepairBefore.qwenInvitationSeen = true;
+  repeatedRepairBefore.actionUseDays["private-message"] = [6, 7, 8];
+  const freshRepairAfter = withRandom(0.99, () => sim.playAction(freshRepairBefore, "private-message"));
+  const repeatedRepairAfter = withRandom(0.99, () => sim.playAction(repeatedRepairBefore, "private-message"));
+  const freshRepair = diffState(freshRepairBefore, freshRepairAfter);
+  const repeatedRepair = diffState(repeatedRepairBefore, repeatedRepairAfter);
+
+  const freshGroupBefore = sim.createInitialState();
+  freshGroupBefore.day = 10;
+  freshGroupBefore.qwenInvitationSeen = true;
+  freshGroupBefore.createdGroup = testGroup();
+  const repeatedGroupBefore = sim.createInitialState();
+  repeatedGroupBefore.day = 10;
+  repeatedGroupBefore.qwenInvitationSeen = true;
+  repeatedGroupBefore.createdGroup = testGroup();
+  repeatedGroupBefore.actionUseDays["recruit-members"] = [6, 7, 8];
+  const freshGroupAfter = withRandom(0.99, () => sim.playAction(freshGroupBefore, "recruit-members"));
+  const repeatedGroupAfter = withRandom(0.99, () => sim.playAction(repeatedGroupBefore, "recruit-members"));
+  const freshGroup = diffState(freshGroupBefore, freshGroupAfter);
+  const repeatedGroup = diffState(repeatedGroupBefore, repeatedGroupAfter);
+
+  return (
+    deltaValue(repeatedRepair.relationships, "Old Friend Nate") < deltaValue(freshRepair.relationships, "Old Friend Nate") &&
+    deltaValue(repeatedRepair.relationships, "Concerned Relative") < deltaValue(freshRepair.relationships, "Concerned Relative") &&
+    deltaValue(repeatedRepair.counters, "repairsMade") < deltaValue(freshRepair.counters, "repairsMade") &&
+    deltaValue(repeatedGroup.group, "members") < deltaValue(freshGroup.group, "members") &&
+    deltaValue(repeatedGroup.group, "health") < deltaValue(freshGroup.group, "health") &&
+    deltaValue(repeatedGroup.relationships, "Local Admin Carol") < deltaValue(freshGroup.relationships, "Local Admin Carol")
+  );
+}));
+
+results.push(check("Maintenance-triggered failures end the run immediately", () => {
+  const burnout = sim.createInitialState();
+  burnout.day = 10;
+  burnout.metrics.burnout = 91;
+  const burnoutAfter = sim.advanceDay(burnout);
+
+  const context = sim.createInitialState();
+  context.day = 10;
+  context.metrics.reach = 3000;
+  context.metrics.trust = 17;
+  context.metrics.drama = 89;
+  context.metrics.heat = 82;
+  const contextAfter = sim.advanceDay(context);
+
+  const unfriended = sim.createInitialState();
+  unfriended.day = 10;
+  unfriended.followers.closeFriends = 3;
+  unfriended.relationships["Old Friend Nate"] = 19;
+  const unfriendedAfter = sim.advanceDay(unfriended);
+
+  return (
+    burnoutAfter.summary?.failureCause === "Burnout Spiral" &&
+    burnoutAfter.metrics.burnout === 92 &&
+    contextAfter.summary?.failureCause === "Context Collapse" &&
+    contextAfter.metrics.trust === 15 &&
+    contextAfter.metrics.drama === 88 &&
+    unfriendedAfter.summary?.failureCause === "Unfriended by Christmas" &&
+    unfriendedAfter.relationships["Old Friend Nate"] === 18
+  );
+}));
+
 results.push(check("Create forecast UI uses actual launch forecast helper", async () => {
   const main = await readFile("src/main.ts", "utf8");
   return main.includes("getGroupLaunchForecast(game") && !main.includes("Object.entries(forecast.effects).map");
+}));
+
+results.push(check("Normal create route preserves active run state", async () => {
+  const main = await readFile("src/main.ts", "utf8");
+  return main.includes('} else if (route === "create") {\n    screen = "create";') && !main.includes('} else if (route === "create") {\n    game = createInitialState');
 }));
 
 results.push(check("Hybrid closest alternative excludes credited primary and secondary paths", () => {
@@ -258,15 +339,34 @@ function reportMatchesStateDelta(before, after, report, options = {}) {
   const parsed = parseEffects(report.effectsText);
   const deltas = diffState(before, after);
   const expected = new Map();
-  for (const [key, value] of Object.entries(deltas.metrics)) {
-    expected.set(METRIC_LABELS[key], value);
+  if (options.metrics !== false) {
+    for (const [key, value] of Object.entries(deltas.metrics)) {
+      expected.set(METRIC_LABELS[key], value);
+    }
   }
-  for (const [key, value] of Object.entries(deltas.followers)) {
-    expected.set(FOLLOWER_LABELS[key], value);
+  if (options.followers !== false) {
+    for (const [key, value] of Object.entries(deltas.followers)) {
+      expected.set(FOLLOWER_LABELS[key], value);
+    }
   }
-  if (options.relationships) {
+  if (options.relationships !== false) {
     for (const [key, value] of Object.entries(deltas.relationships)) {
       expected.set(key, value);
+    }
+  }
+  if (options.group !== false) {
+    for (const [key, value] of Object.entries(deltas.group)) {
+      expected.set(key === "members" ? "Group Members" : "Group Health", value);
+    }
+  }
+  if (options.counters !== false) {
+    for (const [key, value] of Object.entries(deltas.counters)) {
+      expected.set(key === "eventsHosted" ? "Events Hosted" : "Repairs Made", value);
+    }
+  }
+  if (options.milestones !== false) {
+    for (const [key, value] of Object.entries(deltas.milestones)) {
+      expected.set(labelMilestoneDelta(key), value);
     }
   }
   return [...expected.entries()].every(([label, value]) => parsed.get(label) === value);
@@ -275,7 +375,7 @@ function reportMatchesStateDelta(before, after, report, options = {}) {
 function parseEffects(items) {
   const parsed = new Map();
   for (const item of items) {
-    const match = item.match(/^([+-]?\d+) (.+)$/);
+    const match = item.match(/^([+-]?\d+(?:\.\d+)?) (.+)$/);
     if (!match) continue;
     parsed.set(match[2], Number(match[1]));
   }
@@ -287,6 +387,15 @@ function diffState(before, after) {
     metrics: diffRecord(before.metrics, after.metrics),
     followers: diffRecord(before.followers, after.followers),
     relationships: diffRecord(before.relationships, after.relationships),
+    group: {
+      ...diffOptional("members", before.createdGroup?.members ?? 0, after.createdGroup?.members ?? 0),
+      ...diffOptional("health", before.createdGroup?.health ?? 0, after.createdGroup?.health ?? 0),
+    },
+    counters: {
+      ...diffOptional("eventsHosted", before.eventsHosted, after.eventsHosted),
+      ...diffOptional("repairsMade", before.repairsMade, after.repairsMade),
+    },
+    milestones: diffRecord(flattenMilestones(before.pathMilestones), flattenMilestones(after.pathMilestones)),
   };
 }
 
@@ -299,6 +408,44 @@ function diffRecord(before, after) {
     }
   }
   return deltas;
+}
+
+function diffOptional(key, before, after) {
+  const delta = after - before;
+  return delta ? { [key]: delta } : {};
+}
+
+function deltaValue(record, key) {
+  return record[key] ?? 0;
+}
+
+function flattenMilestones(milestones) {
+  const flattened = {};
+  for (const [path, values] of Object.entries(milestones)) {
+    for (const [key, value] of Object.entries(values)) {
+      flattened[`${path}.${key}`] = typeof value === "boolean" ? Number(value) : value;
+    }
+  }
+  return flattened;
+}
+
+function labelMilestoneDelta(key) {
+  const [path = "", value = ""] = key.split(".");
+  const pathLabel = path.charAt(0).toUpperCase() + path.slice(1);
+  const valueLabel = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/^./, (char) => char.toUpperCase());
+  return `${pathLabel} ${valueLabel}`;
+}
+
+function testGroup() {
+  return {
+    name: "Regression Test Room",
+    premise: "Local creator circle",
+    tone: "welcoming",
+    rules: "no argument spirals",
+    firstPost: "What are you building this week?",
+    members: 24,
+    health: 70,
+  };
 }
 
 function withRandom(value, fn) {

@@ -102,6 +102,14 @@ const STRATEGIES = [
     "signal-boost": 4,
     "recruit-members": 3,
   }, ["lean", "shareQwenDemo", "letProjectSpeak", "clarify"]),
+  strategy("repeat farmer", ["relationships", "community", "local"], {
+    "create-group": 20,
+    "private-message": 22,
+    "host-event": 21,
+    "small-town-meetup": 21,
+    "recruit-members": 20,
+    "group-challenge": 18,
+  }, ["private", "friend", "apologize", "clarify", "mute"]),
 ];
 
 const FAILURE_STRESS = [
@@ -221,8 +229,8 @@ function chooseAction(hand, config, state, salt) {
         : 0;
     const explicit = (config.weights[action.id] ?? 0) + noOpPenalty;
     const tagScore = action.tags.reduce((sum, tag) => sum + (config.weights[`tag:${tag}`] ?? 0), 0);
-    const freshness = sim.getActionFreshness ? sim.getActionFreshness({ actionUseDays: {}, day: 1 }, action.id).multiplier : 1;
-    return { action, score: explicit + tagScore + tieBreak(action.id, salt + index) + freshness * 0.01 };
+    const freshness = sim.getActionFreshness ? sim.getActionFreshness(state, action.id).multiplier : 1;
+    return { action, score: explicit + tagScore + tieBreak(action.id, salt + index) + freshness * 2 };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored[0]?.action ?? hand[0];
@@ -350,6 +358,7 @@ function acceptanceChecks(matrix, stress, initial, healthyDayChecks) {
   checks.push(check("No run records more than 30 healthy days", matrix.every((summary) => summary.communityState.maxHealthyRoomDays <= 30) && stress.communityState.maxHealthyRoomDays <= 30));
   checks.push(check("Community average healthy days at or below 30", byName.community.communityState.healthyRoomDays <= 30));
   checks.push(check("Organizer average healthy days at or below 30", byName.organizer.communityState.healthyRoomDays <= 30));
+  checks.push(check("Repeat farmer strategy pressure-tests action repetition", byName["repeat farmer"].actionRepetition >= 15));
   return checks;
 }
 

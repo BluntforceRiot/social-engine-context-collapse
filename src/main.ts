@@ -377,7 +377,6 @@ function routeFromHash(): void {
     game = createDemoState("main");
     screen = "community";
   } else if (route === "create") {
-    game = createInitialState(selectedInterestIds);
     screen = "create";
   } else if (route === "demo-manage-group") {
     game = createDemoState("main");

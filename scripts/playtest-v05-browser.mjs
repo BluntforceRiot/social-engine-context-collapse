@@ -41,6 +41,14 @@ const communityBody = await page.locator("body").innerText();
 results.push(check("Community route reload does not inject demo created group", !communityBody.includes("Barn LAN and Donut Society")));
 results.push(check("Community route reload does not inject joined demo rooms", (await page.getByRole("button", { name: "JOINED" }).count()) === 0));
 await page.getByRole("button", { name: "Back to Run" }).click();
+await goto("#/demo-main");
+results.push(check("Demo main starts as an advanced run", (await page.locator("body").innerText()).includes("Day 12 / 30")));
+await page.evaluate(() => {
+  window.location.hash = "#/create";
+});
+await page.waitForURL(/#\/create$/);
+await page.getByRole("button", { name: "Back to Run" }).click();
+results.push(check("Create route hash navigation preserves active run", (await page.locator("body").innerText()).includes("Day 12 / 30")));
 await page.getByRole("button", { name: "Victory Paths" }).first().click();
 results.push(check("Victory Paths drawer opens", await page.locator(".victory-paths-drawer").isVisible()));
 results.push(check("Victory Paths drawer lists all seven paths", (await page.locator(".victory-paths-drawer .path-detail-card").count()) === 7));
@@ -56,7 +64,12 @@ const graphLabelState = await graphLabelReport();
 results.push(check("Graph labels only reveal focused/active nodes", graphLabelState.visibleCount <= 6));
 results.push(check("Visible graph labels do not collide", graphLabelState.overlaps.length === 0));
 
-await goto("#/create");
+await goto("");
+await page.getByRole("button", { name: "Start Run" }).click();
+await page.evaluate(() => {
+  window.location.hash = "#/create";
+});
+await page.waitForURL(/#\/create$/);
 results.push(check("Actual create-group forecast visible", await page.getByText("Live launch forecast").isVisible()));
 results.push(check("Create-group visual preview visible", await page.getByText("Sample first feed card").isVisible()));
 results.push(check("Create-group likely ally/rival visible", await page.getByText("Likely ally").isVisible()));
