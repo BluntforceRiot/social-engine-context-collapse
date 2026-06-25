@@ -1,6 +1,6 @@
 {
   "name": "social-engine-context-collapse",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
@@ -14,12 +14,22 @@
     "screenshots:v03": "node scripts/capture-v03-screenshots.mjs",
     "screenshots:v04": "node scripts/capture-v04-screenshots.mjs",
     "screenshots:v05": "node scripts/capture-v05-screenshots.mjs",
+    "screenshots:v051": "node scripts/capture-v05-screenshots.mjs",
+    "screenshots:v100": "node scripts/capture-v05-screenshots.mjs --v100",
     "screenshots:qwen": "node scripts/capture-qwen-cameo-screenshots.mjs",
     "playtest:v03": "node scripts/playtest-v03.mjs",
     "playtest:v04": "node scripts/playtest-v04-balance.mjs",
     "balance:v05": "node scripts/balance-v05.mjs",
+    "balance:v051": "node scripts/balance-v05.mjs",
+    "balance:v100": "node scripts/balance-v05.mjs --v100",
     "playtest:v05": "node scripts/playtest-v05-browser.mjs",
-    "playtest:qwen": "node scripts/playtest-qwen-cameo.mjs"
+    "playtest:v051": "node scripts/playtest-v05-browser.mjs",
+    "playtest:v100": "node scripts/playtest-v05-browser.mjs --v100",
+    "playtest:qwen": "node scripts/playtest-qwen-cameo.mjs",
+    "validate:receipt:v051": "node scripts/validate-receipt-v051.mjs V051",
+    "validate:receipt:v100": "node scripts/validate-receipt-v051.mjs V100",
+    "package:v051": "node scripts/package-v051-review.mjs v051",
+    "package:v100": "node scripts/package-v051-review.mjs v100"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

@@ -37,7 +37,7 @@ for (const [route, fileName] of routes) {
 
 await page.goto(`${baseUrl.replace(/\/$/, "/")}#/credits`, { waitUntil: "networkidle" });
 await assertSocialEngine(page, `${baseUrl}#/credits`);
-await page.getByRole("button", { name: "Preview Qwen Franklin Event" }).click();
+await page.getByRole("button", { name: "Preview Featured Guest Signal" }).click();
 await page.waitForTimeout(500);
 await page.screenshot({ path: path.join(outputDir, "social-engine-qwen-preview-event.png"), fullPage: false });
 console.log("Captured social-engine-qwen-preview-event.png");

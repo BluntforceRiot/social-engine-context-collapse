@@ -41,7 +41,7 @@ await goto("");
 await page.getByRole("button", { name: "Start Run" }).click();
 const dayBeforePreview = await currentDayLabel();
 await goto("#/credits");
-await page.getByRole("button", { name: "Preview Qwen Franklin Event" }).click();
+await page.getByRole("button", { name: "Preview Featured Guest Signal" }).click();
 results.push(check("Preview event opens from About/Credits", await page.locator('[data-preview="qwen"]').isVisible()));
 results.push(check("Preview choices are non-scoring disabled buttons", (await page.locator(".preview-choices button:disabled").count()) === 4));
 await assertProjectLink("Preview project link");
@@ -162,7 +162,7 @@ async function currentDayLabel() {
 
 async function assertQwenInvitation(name) {
   results.push(check(`${name} is present`, await qwenInvitationVisible()));
-  results.push(check(`${name} shows guest banner`, (await page.getByText("GUEST SIGNAL FROM MYLES'S FOUNDING FATHER A.I.").count()) >= 1));
+  results.push(check(`${name} shows featured guest banner`, (await page.getByText("FEATURED GUEST SIGNAL FROM MYLES'S FOUNDING FATHER A.I.").count()) >= 1));
   results.push(check(`${name} uses compact chips`, (await page.locator(".effects-list span").count()) === 3));
   results.push(check(`${name} omits victory chip`, (await page.getByText(["Not required", "for victory"].join(" ")).count()) === 0));
 }

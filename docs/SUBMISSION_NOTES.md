@@ -32,7 +32,7 @@ This is not a party-politics simulator. It does not use real politicians, real p
 - Generated WebAudio only; no copyrighted audio.
 - GitHub Pages workflow included. Codex did not push or deploy this build.
 - v0.4.0 adds a credited, scripted Qwen Franklin competitor reference with original dialogue/art and no direct third-party code or asset reuse.
-- v0.5 adds explicit path-specific milestone state, real victory qualification, targeted meter decay, action repetition fatigue, hand refresh, character SVG avatars, ending explanations, a 4,500-run source balance matrix, and browser assertions.
+- The final submission build adds explicit path-specific milestone state, real victory qualification, targeted meter decay, action repetition fatigue, hand refresh, character SVG avatars, ending explanations, a 4,500-run source balance matrix, and browser assertions.
 
 ## Demo URL
 
@@ -65,11 +65,11 @@ The scoring model rewards balanced reach, trust, agency, belonging, skill credib
 - The Founders & Future Society community unlocks through the Qwen reference path.
 - Joining Founders & Future Society is idempotent; once joined, the card shows `JOINED` and cannot reapply rewards.
 - Aunt JPEG can trigger a funny, nonpartisan media-literacy context-collapse event after the Qwen reference enters the run.
-- Public About/Credits page includes the competitor-reference card, active project/source links, original/no-reuse attribution, and a non-scoring `Preview Qwen Franklin Event` button.
+- Public About/Credits page includes the competitor-reference card, active project/source links, original/no-reuse attribution, and a non-scoring `Preview Featured Guest Signal` button.
 - `npm run playtest:qwen` verifies discoverability, non-mutating preview behavior, active project/source links, joined state, Aunt JPEG responses, About/Credits content, and horizontal overflow at 1440x900, 1366x768, and 1280x720.
 - See `THIRD_PARTY_NOTICES.md` and `docs/submission/COMPETITOR_REFERENCE_QWEN_FRANKLIN.md`.
 
-## v0.5 Public Submission Candidate Notes
+## v1.0 Submission Build Notes
 
 - Seven victory paths now qualify from explicit mandatory milestones rather than average global meters.
 - The daily hand has six visible slots: relationship/community, knowledge/creator, growth/viral, boundary/repair, interest-biased, and wildcard.
@@ -79,5 +79,5 @@ The scoring model rewards balanced reach, trust, agency, belonging, skill credib
 - Skilled viral play can earn Viral-primary victories through conversion and recovery; reckless viral play produces materially more hard failures.
 - Ending screens explain primary ending, optional hybrid path, completed milestones, missed thresholds, turning point, preserved relationship, worst collapse, community state, and alternate strategy.
 - Recurring people now have original lightweight SVG profile avatars in the graph, inspector, comments, and ending context.
-- `npm run balance:v05` runs 500 seeds each across random, knowledge, community, relationship, creator, organizer, escape, skilled viral, and reckless viral policies.
-- `npm run playtest:v05` runs browser assertions for routes, path endings, Qwen reference, hand refresh, create/manage group states, ending explanations, and overflow.
+- `npm run balance:v051` runs 500 seeds each across random, knowledge, community, relationship, creator, organizer, escape, skilled viral, and reckless viral policies.
+- `npm run playtest:v051` runs browser assertions for routes, path endings, Qwen reference, hand refresh, create/manage group states, ending explanations, and overflow.

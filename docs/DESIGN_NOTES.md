@@ -53,7 +53,7 @@ The Qwen Franklin crossover is designed as a credited, affectionate guest signal
 - It uses original Social Engine event writing and an original SVG guest avatar.
 - It adds a Knowledge/Agency-leaning community without overpowering the normal score paths.
 - Its unique failure pressure is media-literacy context collapse: relatives confusing a synthetic historical guest account with literal evidence.
-- About/Credits includes active `Visit Founding Father A.I.` and `View Source` links plus a non-scoring `Preview Qwen Franklin Event` button.
+- About/Credits includes active `Visit Founding Father A.I.` and `View Source` links plus a non-scoring `Preview Featured Guest Signal` button.
 
 ## v0.4 Systems Rebuild
 
@@ -69,9 +69,9 @@ The full v0.4 pass preserves the Qwen reference foundation while rebuilding the 
 - Graph nodes now use clustered layout, role-based initials, and richer inspector copy to make the recurring cast feel intentional.
 - `npm run playtest:v04` runs seeded browser balance passes across Knowledge/Qwen, Creator, Organizer, and Weird Internet strategies.
 
-## v0.5 Public Submission Candidate
+## v1.0 Submission Build
 
-v0.5 turns the visible path labels into real strategy outcomes.
+The submission build turns the visible path labels into real strategy outcomes.
 
 - Each victory path has explicit path-specific counters and mandatory milestones.
 - Primary victories require path progress, mandatory milestones, and no path-specific disqualifier.
@@ -83,7 +83,7 @@ v0.5 turns the visible path labels into real strategy outcomes.
 - Escape requires a late explicit `Take The Community Independent` action.
 - End screens explain what qualified, what was missed, and how another strategy could have changed the result.
 - Recurring people now use original SVG avatars instead of initials-only identity.
-- Source-level balance runs cover 500 seeds each across nine policies and write `BALANCE_REPORT_SOCIAL_ENGINE_V05.md`.
+- Source-level balance runs cover 500 seeds each across nine policies and write `BALANCE_REPORT_SOCIAL_ENGINE_V100.md` for the final release packet.
 
 ## Core Loop
 

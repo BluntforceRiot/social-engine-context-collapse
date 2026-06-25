@@ -3,9 +3,11 @@ import { pathToFileURL } from "node:url";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+const release = process.argv.includes("--v100") ? "V100" : "V051";
+const titleVersion = release === "V100" ? "v1.0" : "v0.5.1";
 const outDir = path.resolve(".tmp-balance-v05");
 const bundlePath = path.join(outDir, "sim-bundle.mjs");
-const reportPath = path.resolve("BALANCE_REPORT_SOCIAL_ENGINE_V05.md");
+const reportPath = path.resolve(`BALANCE_REPORT_SOCIAL_ENGINE_${release}.md`);
 
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
@@ -146,8 +148,9 @@ for (const config of FAILURE_STRESS) {
 const stressSummary = summarizeRuns("targeted failure stress", stressRuns);
 
 const initial = sim.getVictoryPathProgress(sim.createInitialState());
-const checks = acceptanceChecks(matrix, stressSummary, initial);
-const report = renderReport(matrix, stressSummary, initial, checks);
+const healthyDayChecks = runHealthyDayUnitChecks();
+const checks = acceptanceChecks(matrix, stressSummary, initial, healthyDayChecks);
+const report = renderReport(matrix, stressSummary, initial, checks, healthyDayChecks);
 await writeFile(reportPath, report, "utf8");
 console.log(report);
 
@@ -258,6 +261,7 @@ function summarizeRuns(name, runs) {
   const primary = countBy(ended, (run) => run.summary.primaryEnding);
   const failuresByType = countBy(failures, (run) => run.summary.failureCause ?? run.summary.title);
   const hybridRate = ended.length ? ended.filter((run) => run.summary.secondaryEnding).length / ended.length : 0;
+  const healthyRoomDays = runs.map((run) => run.state.pathMilestones.community.healthyGroupDays);
   return {
     name,
     runs,
@@ -274,11 +278,15 @@ function summarizeRuns(name, runs) {
     viralEvents: average(runs.map((run) => run.state.pathMilestones.viral.viralEvents)),
     score: average(ended.map((run) => run.summary.score)),
     actionRepetition: average(runs.map((run) => repetitionScore(run.actions))),
+    completedDayViolations: runs.filter(
+      (run) => run.state.pathMilestones.community.healthyGroupDays > completedDaysForRun(run),
+    ).length,
     communityState: {
       joined: average(runs.map((run) => run.state.joinedCommunityIds.length)),
       created: average(runs.map((run) => Number(Boolean(run.state.createdGroup)))),
       createdGroupHealth: average(runs.map((run) => run.state.createdGroup?.health ?? 0)),
-      healthyRoomDays: average(runs.map((run) => run.state.pathMilestones.community.healthyGroupDays)),
+      healthyRoomDays: average(healthyRoomDays),
+      maxHealthyRoomDays: healthyRoomDays.length ? Math.max(...healthyRoomDays) : 0,
     },
     pathProgress: Object.fromEntries(
       sim.getVictoryPathProgress(runs[0]?.state ?? sim.createInitialState()).map((path) => [
@@ -289,12 +297,21 @@ function summarizeRuns(name, runs) {
   };
 }
 
+function completedDaysForRun(run) {
+  const day = Math.min(30, Math.max(0, run.state.day));
+  const summary = run.summary;
+  if (summary?.outcome === "failure" && summary.failureCause && summary.failureCause !== "No victory path qualified") {
+    return Math.max(0, day - 1);
+  }
+  return day;
+}
+
 function averageFinals(ended) {
   const metrics = ["reach", "trust", "agency", "belonging", "drama", "burnout", "heat", "realityDrift", "skillCred"];
   return Object.fromEntries(metrics.map((metric) => [metric, average(ended.map((run) => run.state.metrics[metric]))]));
 }
 
-function acceptanceChecks(matrix, stress, initial) {
+function acceptanceChecks(matrix, stress, initial, healthyDayChecks) {
   const byName = Object.fromEntries(matrix.map((item) => [item.name, item]));
   const intended = {
     knowledge: "Knowledge",
@@ -305,6 +322,7 @@ function acceptanceChecks(matrix, stress, initial) {
     escape: "Escape",
   };
   const checks = [
+    ...healthyDayChecks,
     check("All initial paths below 50", initial.every((path) => path.value < 50)),
     check("No initial path begins Rising or Strong", initial.every((path) => !["Rising", "Strong"].includes(path.status))),
   ];
@@ -328,14 +346,22 @@ function acceptanceChecks(matrix, stress, initial) {
   checks.push(check("Multiple failure types are reachable", Object.keys(stress.failuresByType).length >= 4));
   checks.push(check("High-heat play collapses more than relationship play", byName["reckless viral"].contextCollapses > byName.relationship.contextCollapses + 1));
   checks.push(check("Repeat join/create remain impossible", byName.community.communityState.joined <= 5 && byName.community.communityState.created <= 1));
+  checks.push(check("No run records healthy days beyond completed days", matrix.every((summary) => summary.completedDayViolations === 0) && stress.completedDayViolations === 0));
+  checks.push(check("No run records more than 30 healthy days", matrix.every((summary) => summary.communityState.maxHealthyRoomDays <= 30) && stress.communityState.maxHealthyRoomDays <= 30));
+  checks.push(check("Community average healthy days at or below 30", byName.community.communityState.healthyRoomDays <= 30));
+  checks.push(check("Organizer average healthy days at or below 30", byName.organizer.communityState.healthyRoomDays <= 30));
   return checks;
 }
 
-function renderReport(matrix, stress, initial, checks) {
+function renderReport(matrix, stress, initial, checks, healthyDayChecks) {
   return [
-    "# Social Engine v0.5 Balance Report",
+    `# Social Engine ${titleVersion} Balance Report`,
     "",
     `Generated: ${new Date().toISOString()}`,
+    "",
+    "## Healthy Group Day Regression Tests",
+    "",
+    ...healthyDayChecks.map((item) => `- ${item.pass ? "PASS" : "FAIL"}: ${item.name}`),
     "",
     "## Initial Path Progress",
     "",
@@ -368,6 +394,7 @@ function renderSummary(summary) {
     `Qwen invitation rate: ${percent(summary.qwenInvitationRate)}`,
     `Action repetition score: ${summary.actionRepetition.toFixed(2)}`,
     `Community state: joined rooms ${summary.communityState.joined.toFixed(2)}, created group rate ${summary.communityState.created.toFixed(2)}, created group health ${summary.communityState.createdGroupHealth.toFixed(1)}, healthy room days ${summary.communityState.healthyRoomDays.toFixed(1)}`,
+    `Healthy day max / completed-day violations: ${summary.communityState.maxHealthyRoomDays} / ${summary.completedDayViolations}`,
     "",
     "Primary paths:",
     ...Object.entries(summary.primary).sort((a, b) => b[1] - a[1]).map(([key, value]) => `- ${key}: ${value}`),
@@ -385,6 +412,64 @@ function renderSummary(summary) {
     ...Object.entries(summary.pathProgress).map(([key, value]) => `- ${key}: ${Number(value).toFixed(1)}`),
     "",
   ];
+}
+
+function runHealthyDayUnitChecks() {
+  const checks = [];
+
+  let joined = sim.createInitialState();
+  joined.joinedCommunityIds = ["linux-forum"];
+  for (let index = 0; index < 5; index += 1) {
+    joined = sim.advanceDay(joined);
+  }
+  checks.push(check("Healthy joined community over 5 completed days records exactly 5 healthy days", joined.pathMilestones.community.healthyGroupDays === 5));
+
+  let created = sim.createInitialState();
+  created.createdGroup = {
+    name: "Healthy Test Room",
+    premise: "Local creator circle",
+    tone: "welcoming",
+    rules: "no argument spirals",
+    firstPost: "What are you building this week?",
+    members: 24,
+    health: 100,
+  };
+  for (let index = 0; index < 30 && !created.summary; index += 1) {
+    created = sim.advanceDay(created);
+  }
+  checks.push(check("Healthy created group over 30 completed days never exceeds 30 healthy days", created.pathMilestones.community.healthyGroupDays <= 30));
+
+  let unhealthy = sim.createInitialState();
+  unhealthy.createdGroup = {
+    name: "Neglected Test Room",
+    premise: "Local creator circle",
+    tone: "chaotic",
+    rules: "argue until someone wins",
+    firstPost: "What are you mad about this week?",
+    members: 24,
+    health: 42,
+  };
+  for (let index = 0; index < 5; index += 1) {
+    unhealthy = sim.advanceDay(unhealthy);
+  }
+  checks.push(check("Unhealthy or neglected group earns no healthy day", unhealthy.pathMilestones.community.healthyGroupDays === 0));
+
+  let dayThirty = sim.createInitialState();
+  dayThirty.day = 29;
+  dayThirty.joinedCommunityIds = ["linux-forum"];
+  dayThirty = sim.advanceDay(dayThirty);
+  const afterDayTwentyNine = dayThirty.pathMilestones.community.healthyGroupDays;
+  dayThirty = sim.advanceDay(dayThirty);
+  checks.push(check("No double increment around Day 30", afterDayTwentyNine === 1 && dayThirty.pathMilestones.community.healthyGroupDays === 2));
+
+  let failure = sim.createInitialState();
+  failure.day = 12;
+  failure.joinedCommunityIds = ["linux-forum"];
+  failure.metrics.burnout = 95;
+  failure = sim.advanceDay(failure);
+  checks.push(check("Failure day does not count as a completed healthy day", Boolean(failure.summary) && failure.pathMilestones.community.healthyGroupDays === 0));
+
+  return checks;
 }
 
 function countBy(items, getter) {

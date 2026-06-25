@@ -560,7 +560,6 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
   applyFollowers(next, tradeoffs.followers);
   next.pathMilestones.community.memberSupportActions += 1;
   next.pathMilestones.community.recurringContributors += Math.max(1, Math.round(tradeoffs.members / 18));
-  next.pathMilestones.community.healthyGroupDays += tradeoffs.health >= 70 ? 1 : 0;
   next.pathMilestones.organizer.recurringParticipants += Math.max(1, Math.round(tradeoffs.members / 10));
   next.pathMilestones.creator.projectMilestones += 1;
   next.report = {
@@ -658,14 +657,16 @@ export function resolveReport(state: GameState, response?: ResponseKey): GameSta
 
 export function advanceDay(state: GameState): GameState {
   const next = cloneState(state);
-  updateDerivedMilestones(next);
+  updateImmediateDerivedValues(next);
   const failure = checkFailure(next);
   if (failure) {
     const ending = pickFailureEnding(next, failure);
     next.summary = buildSummary(next, "failure", ending.title, ending);
     return next;
   }
+  recordCompletedDayMilestones(next);
   if (next.day >= RUN_LENGTH_DAYS) {
+    updateImmediateDerivedValues(next);
     const ending = pickEnding(next);
     next.summary = buildSummary(next, ending.outcome, ending.title, ending);
     return next;
@@ -673,7 +674,7 @@ export function advanceDay(state: GameState): GameState {
   next.day += 1;
   next.handRefreshesToday = 0;
   applyDailyMaintenance(next);
-  updateDerivedMilestones(next);
+  updateImmediateDerivedValues(next);
   next.scorePreview = calculateScore(next);
   return next;
 }
@@ -709,7 +710,14 @@ export function calculateScore(state: GameState): number {
 
 export function getVictoryPathProgress(
   state: GameState,
-): Array<{ name: string; value: number; status: string; milestones: string[]; qualifies: boolean }> {
+): Array<{
+  name: string;
+  value: number;
+  status: string;
+  milestones: string[];
+  milestoneDetails: VictoryMilestone[];
+  qualifies: boolean;
+}> {
   const milestones = getVictoryMilestones(state);
   return PATH_NAMES.map((name) => {
     const pathMilestones = milestones.filter((milestone) => milestone.path === name);
@@ -721,9 +729,8 @@ export function getVictoryPathProgress(
       value: clamp(value, 0, 100),
       status: labelMilestoneProgress(value, completed),
       qualifies: value >= 80 && mandatory.every((milestone) => milestone.complete) && !pathDisqualified(state, name),
-      milestones: pathMilestones.map(
-        (milestone) => `${milestone.complete ? "Hit" : "Next"}: ${milestone.label}${milestone.mandatory ? " *" : ""}`,
-      ),
+      milestoneDetails: pathMilestones,
+      milestones: pathMilestones.map((milestone) => `${milestone.complete ? "Hit" : "Next"}: ${milestone.label}`),
     };
   });
 }
@@ -1284,7 +1291,7 @@ function prepareVictoryDemo(state: GameState, path: PathKey): void {
     };
   }
 
-  updateDerivedMilestones(state);
+  updateImmediateDerivedValues(state);
   const ending = pickEnding(state);
   state.summary = buildSummary(state, ending.outcome, ending.title, ending);
 }
@@ -1521,7 +1528,7 @@ function buildQwenInvitationReport(affectedNodes: string[]): DayReport {
     kind: "feed",
     title: "QWEN FRANKLIN HAS SENT YOU AN INVITATION",
     body: "An unusually articulate founding father has invited you to the Founders & Future Society, a group for history nerds, AI builders, civic experiments, and people with extremely specific opinions about bifocals.",
-    effectsText: ["Rare Guest Signal", "Knowledge Opportunity", "Context Risk"],
+    effectsText: ["Featured Guest Signal", "Knowledge Opportunity", "Context Risk"],
     source: "friendly competition crossover",
     audience: "history nerds, AI builders, civic tinkerers, relatives with questions",
     context: "Fraying",
@@ -1873,19 +1880,33 @@ function applyDailyMaintenance(state: GameState): void {
   applyEffects(state, effects);
 }
 
-function updateDerivedMilestones(state: GameState): void {
+function updateImmediateDerivedValues(state: GameState): void {
   const p = state.pathMilestones;
-  if (state.createdGroup && state.createdGroup.health >= 70) {
-    p.community.healthyGroupDays += 1;
-  } else if (state.joinedCommunityIds.some((id) => getCommunity(id)?.tone === "healthy")) {
-    p.community.healthyGroupDays += 1;
-  }
   p.relationship.closeFriendsPreserved = Math.max(
     p.relationship.closeFriendsPreserved,
     Math.min(9, state.followers.closeFriends),
   );
   p.relationship.relationshipLosses = Math.max(0, 6 - state.followers.closeFriends);
   p.viral.peakReach = Math.max(p.viral.peakReach, state.metrics.reach);
+}
+
+function recordCompletedDayMilestones(state: GameState): void {
+  if (!hasHealthyCommunityForCompletedDay(state)) {
+    return;
+  }
+
+  const completedDayCap = Math.min(RUN_LENGTH_DAYS, Math.max(0, state.day));
+  state.pathMilestones.community.healthyGroupDays = Math.min(
+    completedDayCap,
+    state.pathMilestones.community.healthyGroupDays + 1,
+  );
+}
+
+function hasHealthyCommunityForCompletedDay(state: GameState): boolean {
+  return (
+    Boolean(state.createdGroup && state.createdGroup.health >= 70) ||
+    state.joinedCommunityIds.some((id) => getCommunity(id)?.tone === "healthy")
+  );
 }
 
 function applyEffects(state: GameState, effects: Partial<Metrics> = {}, multiplier = 1): void {
@@ -1957,6 +1978,7 @@ interface EndingDecision {
   completedMilestones: string[];
   missedThresholds: string[];
   biggestTurningPoint: string;
+  decisiveMoment: string;
   triggeringEvent: string;
   strategyHint: string;
 }
@@ -1980,6 +2002,7 @@ function pickEnding(state: GameState): EndingDecision {
     completedMilestones: completedMilestoneLabels(state, primary.name, secondary?.name),
     missedThresholds: missedMilestoneLabels(state, primary.name, secondary?.name),
     biggestTurningPoint: biggestTurningPoint(state),
+    decisiveMoment: decisiveMomentFor(state, primary.name, secondary?.name),
     triggeringEvent: state.recentPost,
     strategyHint: strategyHintFor(primary.name, secondary?.name),
   };
@@ -2045,6 +2068,7 @@ function pickFailureEnding(state: GameState, failure: string): EndingDecision {
     completedMilestones: completedMilestoneLabels(state, progress[0]?.name),
     missedThresholds: missedMilestoneLabels(state, progress[0]?.name).slice(0, 5),
     biggestTurningPoint: worstCollapse,
+    decisiveMoment: decisiveMomentForFailure(state, failure),
     triggeringEvent: state.recentPost,
     strategyHint: strategyHintForFailure(failure),
   };
@@ -2070,6 +2094,7 @@ function pickNonVictoryEnding(
     completedMilestones: completedMilestoneLabels(state, strongest?.name).slice(0, 6),
     missedThresholds: missedMilestoneLabels(state, strongest?.name).slice(0, 6),
     biggestTurningPoint: biggestTurningPoint(state),
+    decisiveMoment: strongest ? decisiveMomentFor(state, strongest.name) : biggestTurningPoint(state),
     triggeringEvent: state.recentPost,
     strategyHint: `You were closest to ${strongest?.name ?? "a stable path"}, but mandatory milestones were still missing.`,
   };
@@ -2100,6 +2125,7 @@ function buildSummary(
     completedMilestones: ending.completedMilestones,
     missedThresholds: ending.missedThresholds,
     biggestTurningPoint: ending.biggestTurningPoint,
+    decisiveMoment: ending.decisiveMoment,
     strategyHint: ending.strategyHint,
     triggeringEvent: ending.triggeringEvent,
     score,
@@ -2284,6 +2310,48 @@ function biggestTurningPoint(state: GameState): string {
   if (state.biggestViralEvent !== "No viral event yet.") return state.biggestViralEvent;
   if (state.worstContextCollapse !== "No context collapse yet.") return state.worstContextCollapse;
   return state.eventLog[0] ?? state.recentPost;
+}
+
+function decisiveMomentFor(state: GameState, primary: string, secondary?: string): string {
+  const p = state.pathMilestones;
+  const path = primary || secondary || "";
+  if (path === "Community") {
+    return `${p.community.healthyGroupDays} healthy group days kept the room useful instead of merely busy.`;
+  }
+  if (path === "Viral") {
+    return state.biggestViralEvent !== "No viral event yet."
+      ? state.biggestViralEvent
+      : `${p.viral.viralOpportunitiesConverted} viral opportunities were converted before the heat took over.`;
+  }
+  if (path === "Knowledge") {
+    return `${p.knowledge.tutorialsPosted} tutorials and ${p.knowledge.peopleHelped} helped people turned expertise into trust.`;
+  }
+  if (path === "Relationship") {
+    return `${p.relationship.privateRepairs} private repairs preserved ${p.relationship.closeFriendsPreserved} close friends.`;
+  }
+  if (path === "Creator") {
+    return `${p.creator.buildLogsPosted} build logs and ${p.creator.opportunitiesConverted} converted opportunities made the project real.`;
+  }
+  if (path === "Organizer") {
+    return `${p.organizer.eventsHosted} hosted events brought ${p.organizer.totalAttendance} people into the room.`;
+  }
+  if (path === "Escape") {
+    return p.escape.exitPlanCompleted
+      ? "The exit plan landed: direct contacts, boundaries, and offline days made the platform optional."
+      : `${p.escape.directContactsBuilt} direct contacts and ${p.escape.boundariesSet} boundaries nearly made the platform optional.`;
+  }
+  return biggestTurningPoint(state);
+}
+
+function decisiveMomentForFailure(state: GameState, failure: string): string {
+  if (failure === "Context Collapse") return state.worstContextCollapse;
+  if (failure === "Feed Rot") return `Reach hit ${state.metrics.reach.toLocaleString()} while trust fell to ${state.metrics.trust}.`;
+  if (failure === "Unfriended by Christmas") return `${state.followers.closeFriends} close friends remained when the run broke.`;
+  if (failure === "Niche Capture") return `Reality drift reached ${state.metrics.realityDrift} with ${state.followers.realityRelatives} reality relatives watching.`;
+  if (failure === "Burnout Spiral") return `Burnout reached ${state.metrics.burnout} before recovery became a habit.`;
+  if (failure === "Reply Guy Singularity") return `Reply pressure turned drama followers into the main audience.`;
+  if (failure === "Algorithm Dependent") return `Heat reached ${state.metrics.heat} before direct opportunities replaced the feed.`;
+  return biggestTurningPoint(state);
 }
 
 function strategyHintFor(primary: string, secondary?: string): string {

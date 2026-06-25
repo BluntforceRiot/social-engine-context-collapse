@@ -4,7 +4,7 @@ Find your people. Try not to lose the plot.
 
 The Social Engine: Context Collapse is a static browser card-and-graph strategy sim about using a fictional social platform, SignalBarn, to build community, gain agency, survive virality, and avoid context collapse.
 
-Current version: v0.5 public submission candidate.
+Current public build: v1.0 submission build · Summer into AI Week 2: Independence Engines.
 
 Built for Summer into AI Week 2: Independence Engines.
 
@@ -51,7 +51,7 @@ A run lasts 30 days. Choose up to three starting interests, then each day pick o
 
 The hand is composed from one relationship/community option, one knowledge/creator option, one growth/viral option, one boundary/repair option, one interest-biased option, and one state-dependent wildcard. The first refresh each day is free; extra refreshes add a little Heat/Burnout.
 
-Victory paths are Community, Viral, Knowledge, Relationship, Creator, Organizer, and Escape. v0.5 makes each path qualify through explicit milestones instead of generic meter averages. Example: Organizer needs events, attendance, recurring participants, and group challenges; Escape needs offline days, direct contacts, boundaries, reduced platform dependence, and the late `Take The Community Independent` action.
+Victory paths are Community, Viral, Knowledge, Relationship, Creator, Organizer, and Escape. Each path qualifies through explicit milestones instead of generic meter averages. Example: Organizer needs events, attendance, recurring participants, and group challenges; Escape needs offline days, direct contacts, boundaries, reduced platform dependence, and the late `Take The Community Independent` action.
 
 Failure and non-victory endings include Context Collapse, Feed Rot, Unfriended by Christmas, Niche Capture, Burnout Spiral, Reply Guy Singularity, Algorithm Dependent, Survivor, Feed Veteran, and Offline but Intact.
 
@@ -61,6 +61,7 @@ Failure and non-victory endings include Context Collapse, Feed Rot, Unfriended b
 - Click one daily action card to play a day.
 - Click `Refresh Free` once per day to redraw the hand.
 - Hover/focus graph nodes to inspect relationships.
+- Open `Victory Paths` from the dashboard to inspect all seven milestone tracks.
 - Choose fallout responses when viral/context-collapse modals appear.
 - `M`: mute/unmute generated audio.
 - `H` from title: run history.
@@ -117,14 +118,14 @@ No Founding Father A.I. code, assets, model outputs, chat logs, private keys, de
 Source-level 500-seed strategy matrix:
 
 ```sh
-npm run balance:v05
+npm run balance:v051
 ```
 
 Browser assertions:
 
 ```sh
 npm run preview
-npm run playtest:v05
+npm run playtest:v051
 ```
 
 Qwen reference assertions:
@@ -138,7 +139,7 @@ Screenshots:
 
 ```sh
 npm run preview
-npm run screenshots:v05
+npm run screenshots:v051
 ```
 
 ## GitHub Pages

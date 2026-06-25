@@ -44,6 +44,7 @@ import type {
   ResponseKey,
   RunSummary,
   Screen,
+  VictoryMilestone,
 } from "./types";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
@@ -56,6 +57,7 @@ let screen: Screen = "title";
 let game: GameState = createInitialState();
 let hoveredNode = "";
 let previewReport: DayReport | undefined;
+let showVictoryPaths = false;
 const savedSummaryIds = new Set<string>();
 let resetConfirmUntil = 0;
 let selectedInterestIds: InterestKey[] = [...DEFAULT_STARTING_INTEREST_IDS];
@@ -100,6 +102,9 @@ const metricLabels: Record<MetricKey, string> = {
   skillCred: "Skill Cred",
 };
 
+const PUBLIC_DEMO_URL = "https://bluntforceriot.github.io/social-engine-context-collapse/";
+const PUBLIC_REPOSITORY_URL = "https://github.com/BluntforceRiot/social-engine-context-collapse";
+
 const responseLabels: Record<ResponseKey, string> = {
   clarify: "Clarify publicly",
   private: "Move to DMs",
@@ -130,6 +135,16 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "m" || event.key === "M") {
     toggleMute();
     render();
+  }
+  if (event.key === "Escape" && previewReport) {
+    previewReport = undefined;
+    render();
+    return;
+  }
+  if (event.key === "Escape" && showVictoryPaths) {
+    showVictoryPaths = false;
+    render();
+    return;
   }
   if (event.key === "Escape" && screen !== "title" && !game.report) {
     navigate("title");
@@ -191,6 +206,7 @@ function handleCommand(command: string, target: HTMLElement): void {
   }
   if (command === "title") {
     previewReport = undefined;
+    showVictoryPaths = false;
     navigate("title");
     return;
   }
@@ -205,11 +221,23 @@ function handleCommand(command: string, target: HTMLElement): void {
   }
   if (command === "preview-qwen") {
     previewReport = createDemoState("qwenInvitation").report;
+    showVictoryPaths = false;
     render();
     return;
   }
   if (command === "close-preview") {
     previewReport = undefined;
+    render();
+    return;
+  }
+  if (command === "victory-paths") {
+    if (game.report || game.summary) return;
+    showVictoryPaths = true;
+    render();
+    return;
+  }
+  if (command === "close-victory-paths") {
+    showVictoryPaths = false;
     render();
     return;
   }
@@ -226,10 +254,6 @@ function handleCommand(command: string, target: HTMLElement): void {
     return;
   }
   if (command === "create") {
-    if (game.createdGroup) {
-      navigate("game");
-      return;
-    }
     navigate("create");
     return;
   }
@@ -339,6 +363,7 @@ function routeFromHash(): void {
   const route = window.location.hash.replace(/^#\/?/, "");
   hoveredNode = "";
   previewReport = undefined;
+  showVictoryPaths = false;
   if (route === "howto") {
     screen = "howto";
   } else if (route === "credits") {
@@ -422,6 +447,7 @@ function routeFromHash(): void {
 
 function navigate(next: Screen, updateHash = true): void {
   screen = next;
+  showVictoryPaths = false;
   if (updateHash) {
     const route = next === "title" ? "" : `/${next}`;
     history.pushState(null, "", `#${route}`);
@@ -520,9 +546,8 @@ function renderCredits(): string {
             <span class="credit-kicker">${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span>
             <h3>GUEST SIGNAL FROM THE COMPETITION</h3>
             <p>Myles's Founding Father A.I. put a real language model inside an 8-bit historical interface. That project pushed The Social Engine to think harder about what happens when intelligence lives inside the artifact, not only in the workshop that built it.</p>
-            <p>Qwen Franklin appears here as a credited guest signal inside SignalBarn's social graph, where even a helpful AI founder can trigger context collapse.</p>
             ${renderGuestLinks()}
-            <button data-ui="preview-qwen">Preview Qwen Franklin Event</button>
+            <button data-ui="preview-qwen">Preview Featured Guest Signal</button>
           </div>
         </article>
 
@@ -534,7 +559,7 @@ function renderCredits(): string {
             ${howCard("No copied files", "No Founding Father A.I. code, artwork, generated chat logs, private keys, deployment secrets, logos, or non-public materials are copied.")}
             ${howCard("Third-party notices", "THIRD_PARTY_NOTICES.md documents the competitor reference, the public source path listed by the article, and the no-direct-reuse boundary.")}
             ${howCard("Current build", "v1.0 submission build. Seven path endings use explicit milestones, local run history, and a scripted Qwen competitor reference.")}
-            ${howCard("Demo / source", "Demo: bluntforceriot.github.io/social-engine-context-collapse/. Source: github.com/BluntforceRiot/social-engine-context-collapse.")}
+            ${renderPublicLinksCard()}
           </div>
         </section>
       </section>
@@ -584,6 +609,7 @@ function renderGame(): string {
         </div>
         <div class="header-stat"><span>Score pace</span><strong>${game.scorePreview.toLocaleString()}</strong></div>
         <div class="header-stat"><span>Recent post</span><strong>${escapeHtml(game.recentPost)}</strong></div>
+        <button data-ui="victory-paths">Victory Paths</button>
         <button data-ui="toggle-mute">${isMuted() ? "Unmute" : "Mute"}</button>
         <button data-ui="title">Exit</button>
       </header>
@@ -646,6 +672,7 @@ function renderGame(): string {
       </section>
       ${renderHud(game)}
       ${game.report ? renderReport(game.report) : ""}
+      ${showVictoryPaths ? renderVictoryPathsDrawer(game) : ""}
     </main>
   `;
 }
@@ -689,7 +716,7 @@ function renderCommunityChoice(): string {
       <section class="manual-panel wide">
         <p class="eyebrow">Community Chooser</p>
         <h2>Join a room with gifts, baggage, and at least one recurring argument.</h2>
-        <p class="body-copy">Joining gives instant members and content fuel. It also imports rivalries, tone, first-event risk, and whatever Local Admin Carol has recently decided. Rare guest rooms unlock through run events.</p>
+        <p class="body-copy">Joining gives instant members and content fuel. It also imports rivalries, tone, first-event risk, and whatever Local Admin Carol has recently decided. Featured guest rooms unlock through run events.</p>
         <div class="community-grid">
           ${visibleCommunities.map(renderCommunityCard).join("")}
         </div>
@@ -735,26 +762,8 @@ function renderCommunityCard(community: (typeof COMMUNITIES)[number]): string {
 
 function renderCreateGroup(): string {
   if (game.createdGroup) {
-    return `
-      <main class="page-shell">
-        <nav class="topbar">
-          <button data-ui="community">Join Rooms</button>
-          <button data-ui="game" class="primary">Back to Run</button>
-        </nav>
-        <section class="manual-panel">
-          <p class="eyebrow">Create New Group</p>
-          <h2>${escapeHtml(game.createdGroup.name)} is already live.</h2>
-          <p class="body-copy">One created group can anchor a run. Grow it through recruit, moderation, challenge, and event actions instead of relaunching for repeated rewards.</p>
-          <div class="forecast-panel">
-            <span>Current group</span>
-            <b>${game.createdGroup.members} members / ${game.createdGroup.health} health</b>
-            <p>${escapeHtml(game.createdGroup.premise)} / ${escapeHtml(game.createdGroup.tone)} / ${escapeHtml(game.createdGroup.rules)}</p>
-          </div>
-        </section>
-      </main>
-    `;
+    return renderManageGroup(game.createdGroup);
   }
-  const forecast = getGroupTradeoffs(GROUP_PREMISES[0], GROUP_TONES[0], GROUP_RULES[0], GROUP_FIRST_POSTS[0]);
   return `
     <main class="page-shell">
       <nav class="topbar">
@@ -767,14 +776,6 @@ function renderCreateGroup(): string {
           <h2>Build a tiny independence engine.</h2>
           <p class="body-copy">Premise, tone, rules, and first post affect starting members, health, context risk, and launch metrics.</p>
           ${renderForecastPanel()}
-          <div class="forecast-panel legacy-forecast">
-            <span>Default launch forecast</span>
-            <b>${forecast.members} starting members / ${forecast.health} health</b>
-            <p>${escapeHtml(forecast.audience)} / ${forecast.context}</p>
-            <div class="effects-list small">
-              ${Object.entries(forecast.effects).map(([key, value]) => `<span>${value && value > 0 ? "+" : ""}${value} ${escapeHtml(key)}</span>`).join("")}
-            </div>
-          </div>
         </div>
         <form id="create-group-form" class="create-form">
           ${selectField("premise", "Premise", GROUP_PREMISES)}
@@ -784,6 +785,68 @@ function renderCreateGroup(): string {
           <button type="button" class="primary" data-ui="create-group">Launch Group</button>
         </form>
       </section>
+    </main>
+  `;
+}
+
+function renderManageGroup(group: CreatedGroup): string {
+  const community = game.pathMilestones.community;
+  const organizer = game.pathMilestones.organizer;
+  const healthLabel = group.health >= 80 ? "strong" : group.health >= 65 ? "steady" : "needs care";
+  const recentActivity = game.feedItems.slice(0, 3);
+  return `
+    <main class="page-shell">
+      <nav class="topbar">
+        <button data-ui="community">Join Rooms</button>
+        <button data-ui="victory-paths">Victory Paths</button>
+        <button data-ui="game" class="primary">Back to Run</button>
+      </nav>
+      <section class="manual-panel wide manage-group-panel">
+        <p class="eyebrow">Manage Group</p>
+        <h2>${escapeHtml(group.name)}</h2>
+        <p class="body-copy">Read-only dashboard. Grow this room through daily action cards; this screen does not advance the day or grant rewards.</p>
+        <div class="manage-grid">
+          <article>
+            <span>Group Identity</span>
+            <b>${escapeHtml(group.premise)}</b>
+            <p>${escapeHtml(group.tone)} tone / ${escapeHtml(group.rules)} / first post: ${escapeHtml(group.firstPost)}</p>
+          </article>
+          <article>
+            <span>Health</span>
+            <b>${group.health} / 100 - ${healthLabel}</b>
+            <p>${group.members} members. Healthy days completed: ${community.healthyGroupDays}.</p>
+          </article>
+          <article>
+            <span>Community Milestones</span>
+            <b>${community.recurringContributors} recurring contributors</b>
+            <p>${community.memberSupportActions} support actions / ${community.moderationSuccesses} moderation successes.</p>
+          </article>
+          <article>
+            <span>Organizer Signal</span>
+            <b>${organizer.eventsHosted} events hosted</b>
+            <p>${organizer.totalAttendance} total attendance / ${organizer.recurringParticipants} recurring participants.</p>
+          </article>
+          <article>
+            <span>Network</span>
+            <b>Likely allies: Local Admin Carol, Old Friend Nate</b>
+            <p>Watch Cousin Reply Guy and high-drama audiences when public posts escape the room.</p>
+          </article>
+          <article>
+            <span>Recommended Next Actions</span>
+            <b>Moderate, recruit, host, delegate</b>
+            <p>Use daily cards like Recruit Members, Delegate Moderation, Group Challenge, and Host Event.</p>
+          </article>
+        </div>
+        <div class="activity-strip">
+          <span>Recent Activity</span>
+          ${
+            recentActivity.length
+              ? recentActivity.map((item) => `<article><b>${escapeHtml(item.title)}</b><p>${escapeHtml(item.body)}</p></article>`).join("")
+              : `<p>No room activity yet.</p>`
+          }
+        </div>
+      </section>
+      ${showVictoryPaths ? renderVictoryPathsDrawer(game) : ""}
     </main>
   `;
 }
@@ -849,8 +912,9 @@ function renderEndScreen(): string {
           ${summaryItem("Day Reached", String(summary.day))}
           ${summaryItem("Trust", String(summary.trust))}
           ${summaryItem("Best Relationship", summary.bestRelationship)}
-          ${summaryItem("Triggering Event", summary.triggeringEvent)}
-          ${summaryItem("Biggest Turning Point", summary.biggestTurningPoint)}
+          ${summaryItem(summary.outcome === "victory" ? "Final Action" : "Triggering Event", summary.triggeringEvent)}
+          ${summaryItem("Decisive Moment", summary.decisiveMoment)}
+          ${shouldShowBiggestTurningPoint(summary) ? summaryItem("Biggest Turning Point", summary.biggestTurningPoint) : ""}
           ${summaryItem("Biggest Viral Event", summary.biggestViralEvent)}
           ${summaryItem("Worst Context Collapse", summary.worstContextCollapse)}
           ${summaryItem("Community", summary.community)}
@@ -877,9 +941,17 @@ function renderEndScreen(): string {
             }
           </article>
           <article>
-            <h3>Different Strategy</h3>
+            <h3>${summary.outcome === "victory" ? "Why This Path Won" : "Different Strategy"}</h3>
             <p>${escapeHtml(summary.strategyHint)}</p>
           </article>
+          ${
+            summary.outcome === "victory"
+              ? `<article>
+                  <h3>Closest Alternative</h3>
+                  <p>${escapeHtml(summary.strongestRemainingPath)} was the closest alternate path, but the credited ending completed the cleaner milestone set.</p>
+                </article>`
+              : ""
+          }
         </div>
         <p class="archive-note">Run archived locally in this browser. Clear the archive from Run History when you want a fresh slate.</p>
       </section>
@@ -914,20 +986,97 @@ function renderVictoryPaths(state: GameState): string {
   return `
     <div class="paths-card">
       <h3>Victory Paths</h3>
-      ${getVictoryPathProgress(state)
-        .map(
-          (path) => `
-            <div class="path-row ${path.status.toLowerCase().replaceAll(" ", "-")} ${path.qualifies ? "qualified" : ""}">
-              <span>${escapeHtml(path.name)}</span>
-              <div><i style="width:${path.value}%"></i></div>
-              <b>${path.qualifies ? "Qualified" : escapeHtml(path.status)}</b>
-              <small>${escapeHtml(path.milestones.slice(0, 3).join(" / "))}</small>
-            </div>
-          `,
-        )
-        .join("")}
+      ${renderVictoryPathRows(state)}
     </div>
   `;
+}
+
+function renderVictoryPathsDrawer(state: GameState): string {
+  return `
+    <div class="modal-backdrop victory-paths-backdrop">
+      <article class="event-modal victory-paths-drawer" role="dialog" aria-modal="true" aria-labelledby="victory-paths-title">
+        <button class="modal-close" data-ui="close-victory-paths" aria-label="Close victory paths">Close</button>
+        <p class="eyebrow">Victory Paths</p>
+        <h2 id="victory-paths-title">All seven ways out.</h2>
+        <p>Progress updates from explicit milestones. Opening this drawer does not advance the day or change the run.</p>
+        <div class="paths-drawer-list">
+          ${renderVictoryPathCards(state)}
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+function renderVictoryPathRows(state: GameState): string {
+  return getVictoryPathProgress(state)
+    .map(
+      (path) => `
+        <div class="path-row ${path.status.toLowerCase().replaceAll(" ", "-")} ${path.qualifies ? "qualified" : ""}">
+          <span>${escapeHtml(path.name)}</span>
+          <div><i style="width:${path.value}%"></i></div>
+          <b>${path.qualifies ? "Qualified" : escapeHtml(path.status)}</b>
+          <small>${path.milestoneDetails.slice(0, 3).map((milestone) => renderMilestoneChip(milestone)).join("")}</small>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function renderVictoryPathCards(state: GameState): string {
+  return getVictoryPathProgress(state)
+    .map((path) => {
+      const completed = path.milestoneDetails.filter((milestone) => milestone.complete);
+      const next = path.milestoneDetails.filter((milestone) => !milestone.complete && milestone.mandatory).slice(0, 4);
+      const optionalNext = path.milestoneDetails.filter((milestone) => !milestone.complete && !milestone.mandatory).slice(0, Math.max(0, 3 - next.length));
+      const nextMilestones = [...next, ...optionalNext];
+      return `
+        <section class="path-detail-card ${path.status.toLowerCase().replaceAll(" ", "-")} ${path.qualifies ? "qualified" : ""}">
+          <div class="path-detail-head">
+            <div>
+              <h3>${escapeHtml(path.name)}</h3>
+              <span>${path.value}%</span>
+            </div>
+            <b>${path.qualifies ? "Qualified" : escapeHtml(path.status)}</b>
+          </div>
+          <div class="path-detail-meter"><i style="width:${path.value}%"></i></div>
+          <div class="path-milestone-columns">
+            <div>
+              <strong>Completed</strong>
+              ${
+                completed.length
+                  ? completed.slice(0, 5).map((milestone) => renderMilestoneLine(milestone, true)).join("")
+                  : `<em>None yet.</em>`
+              }
+            </div>
+            <div>
+              <strong>Next</strong>
+              ${
+                nextMilestones.length
+                  ? nextMilestones.map((milestone) => renderMilestoneLine(milestone, false)).join("")
+                  : `<em>All listed milestones are complete.</em>`
+              }
+            </div>
+          </div>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function renderMilestoneChip(milestone: VictoryMilestone): string {
+  const label = milestoneLabel(milestone);
+  const required = milestone.mandatory ? "required" : "bonus";
+  const state = milestone.complete ? "complete" : "next";
+  return `<em class="milestone-chip ${state} ${required}">${milestone.complete ? "Done" : milestone.mandatory ? "Req" : "Opt"}: ${escapeHtml(label)}</em>`;
+}
+
+function renderMilestoneLine(milestone: VictoryMilestone, complete: boolean): string {
+  const label = milestoneLabel(milestone);
+  return `<span class="milestone-line ${complete ? "complete" : "next"} ${milestone.mandatory ? "required" : "optional"}"><i>${complete ? "Done" : "Next"}</i>${escapeHtml(label)}${milestone.mandatory ? `<small>Required</small>` : `<small>Optional</small>`}</span>`;
+}
+
+function milestoneLabel(milestone: VictoryMilestone): string {
+  return formatDisplayLabel(milestone.label);
 }
 
 function renderFeed(state: GameState): string {
@@ -1015,8 +1164,8 @@ function renderTodayStrip(state: GameState): string {
         <span>Today's goal</span>
         <b>${escapeHtml(todayGoal(state))}</b>
       </div>
-      <p>Pick one action, resolve the reaction card, and keep useful people closer than the argument.</p>
-      <em>Hover graph nodes for context. Drama followers are not the same as community.</em>
+      <p>Pick one action. Resolve the reaction. Keep useful people closer than the argument.</p>
+      <em>One clean choice advances the day.</em>
     </section>
   `;
 }
@@ -1024,6 +1173,7 @@ function renderTodayStrip(state: GameState): string {
 function renderReport(report: GameState["report"]): string {
   if (!report) return "";
   const options = report.responseOptions ?? ["clarify", "private", "lean"];
+  const guestLabel = "Featured Guest Signal";
   const responseButtons = report.responseRequired
     ? `
       <div class="response-grid expanded">
@@ -1036,10 +1186,10 @@ function renderReport(report: GameState["report"]): string {
       <article class="event-modal ${report.kind}">
         ${
           report.guestAvatar
-            ? `<div class="guest-modal-head">${renderGuestAvatar("modal")}<div><span>${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span><b>${escapeHtml(report.credit ?? "Guest Signal")}</b>${report.showGuestLinks ? renderGuestLinks("compact") : ""}</div></div>`
+            ? `<div class="guest-modal-head">${renderGuestAvatar("modal")}<div><span>${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span><b>${guestLabel}</b>${report.credit ? `<small>${escapeHtml(report.credit)}</small>` : ""}${report.showGuestLinks ? renderGuestLinks("compact") : ""}</div></div>`
             : ""
         }
-        <p class="eyebrow">${labelReportKind(report.kind)}</p>
+        <p class="eyebrow">${report.guestAvatar ? guestLabel : labelReportKind(report.kind)}</p>
         <h2>${escapeHtml(report.title)}</h2>
         <p>${escapeHtml(report.body)}</p>
         <div class="report-brief">
@@ -1070,8 +1220,8 @@ function renderPreviewReport(report: DayReport): string {
     <div class="modal-backdrop" data-preview="qwen">
       <article class="event-modal ${report.kind} preview-modal">
         <div class="preview-ribbon">Non-scoring preview</div>
-        <div class="guest-modal-head">${renderGuestAvatar("modal")}<div><span>${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span><b>${escapeHtml(report.credit ?? "Guest Signal")}</b>${renderGuestLinks("compact")}</div></div>
-        <p class="eyebrow">Guest Signal Preview</p>
+        <div class="guest-modal-head">${renderGuestAvatar("modal")}<div><span>${escapeHtml(QWEN_FRANKLIN_PROJECT_TITLE)}</span><b>Featured Guest Signal</b>${report.credit ? `<small>${escapeHtml(report.credit)}</small>` : ""}${renderGuestLinks("compact")}</div></div>
+        <p class="eyebrow">Featured Guest Signal Preview</p>
         <h2>${escapeHtml(report.title)}</h2>
         <p>${escapeHtml(report.body)}</p>
         <div class="effects-list">
@@ -1185,9 +1335,9 @@ function renderGraph(state: GameState): string {
         ${links}
         ${nodeMarkup}
       </svg>
+      ${renderGraphLegend()}
       ${renderNodeInspector(state)}
     </div>
-    ${renderGraphLegend()}
     <div class="relationship-list">
       ${Object.entries(state.relationships)
         .sort((a, b) => b[1] - a[1])
@@ -1239,6 +1389,7 @@ function renderGraphLegend(): string {
       <span><i class="legend-drama"></i>Drama</span>
       <span><i class="legend-group"></i>Group</span>
       <span><i class="legend-strain"></i>Thin red lines strain</span>
+      <span class="legend-help" tabindex="0" aria-label="Hover people for context. Drama followers are not community." data-tooltip="Hover people for context. Drama followers are not community.">Graph help</span>
     </div>
   `;
 }
@@ -1270,12 +1421,47 @@ function renderForecastContent(
     <span>Live launch forecast</span>
     <b>${forecast.members} starting members / ${forecast.health} health</b>
     <p>${escapeHtml(forecast.audience)} / ${forecast.context} / ${escapeHtml(postSignal)}</p>
+    ${renderCreateGroupPreview(premise, tone, rules, firstPost, forecast)}
     <dl class="forecast-readout">
       <dt>Risk</dt><dd>${escapeHtml(forecast.risk)}</dd>
       <dt>Tradeoffs</dt><dd>${forecast.tradeoffs.map(escapeHtml).join(", ")}</dd>
     </dl>
     <div class="effects-list small">
       ${Object.entries(forecast.effects).map(([key, value]) => `<span>${value && value > 0 ? "+" : ""}${value} ${escapeHtml(key)}</span>`).join("")}
+    </div>
+  `;
+}
+
+function renderCreateGroupPreview(
+  premise: string,
+  tone: string,
+  rules: string,
+  firstPost: string,
+  forecast: ReturnType<typeof getGroupTradeoffs>,
+): string {
+  const initials = makeGroupName(premise, tone)
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+  const likelyAlly = premise.includes("Linux") || tone.includes("technical") ? "Linux Forum Mentor" : "Local Admin Carol";
+  const likelyRival = rules.includes("No") || rules.includes("no") ? "Cousin Reply Guy" : "Former Classmate Darren";
+  const previewTitle = firstPost.length > 46 ? `${firstPost.slice(0, 43)}...` : firstPost;
+  return `
+    <div class="group-preview" aria-label="Created group preview">
+      <div class="preview-node">
+        <span>${escapeHtml(initials || "GR")}</span>
+        <i></i>
+      </div>
+      <div class="preview-card">
+        <em>Sample first feed card</em>
+        <strong>${escapeHtml(previewTitle)}</strong>
+        <p>${escapeHtml(forecast.audience)} audience / ${forecast.members} members / ${forecast.health} health</p>
+      </div>
+      <dl>
+        <dt>Likely ally</dt><dd>${escapeHtml(likelyAlly)}</dd>
+        <dt>Likely rival</dt><dd>${escapeHtml(likelyRival)}</dd>
+      </dl>
     </div>
   `;
 }
@@ -1337,6 +1523,19 @@ function howCard(title: string, body: string): string {
     <article>
       <h3>${escapeHtml(title)}</h3>
       <p>${escapeHtml(body)}</p>
+    </article>
+  `;
+}
+
+function renderPublicLinksCard(): string {
+  return `
+    <article class="public-links-card">
+      <h3>Demo / Source</h3>
+      <p>Public static build and source repository.</p>
+      <div>
+        ${renderExternalLink("PLAY LIVE DEMO", PUBLIC_DEMO_URL)}
+        ${renderExternalLink("VIEW REPOSITORY", PUBLIC_REPOSITORY_URL)}
+      </div>
     </article>
   `;
 }
@@ -1427,10 +1626,23 @@ function selectField(name: string, label: string, values: string[]): string {
     <label>
       <span>${label}</span>
       <select name="${name}">
-        ${values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join("")}
+        ${values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(formatDisplayLabel(value))}</option>`).join("")}
       </select>
     </label>
   `;
+}
+
+function formatDisplayLabel(value: string): string {
+  return value
+    .split(" ")
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (lower === "jpeg" || lower === "jpegs") return lower === "jpeg" ? "JPEG" : "JPEGs";
+      if (lower === "ai") return "AI";
+      if (lower === "dm" || lower === "dms") return lower === "dm" ? "DM" : "DMs";
+      return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+    })
+    .join(" ");
 }
 
 function summaryItem(label: string, value: string): string {
@@ -1440,6 +1652,15 @@ function summaryItem(label: string, value: string): string {
       <strong>${escapeHtml(value)}</strong>
     </div>
   `;
+}
+
+function shouldShowBiggestTurningPoint(summary: RunSummary): boolean {
+  const turningPoint = normalizeSummaryText(summary.biggestTurningPoint);
+  return turningPoint !== normalizeSummaryText(summary.triggeringEvent) && turningPoint !== normalizeSummaryText(summary.decisiveMoment);
+}
+
+function normalizeSummaryText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function labelReportKind(kind: string): string {

@@ -3,9 +3,13 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const baseUrl = process.env.SOCIAL_ENGINE_BASE_URL ?? "http://127.0.0.1:4173/";
-const outputPath = path.resolve("PLAYTEST_REPORT_SOCIAL_ENGINE_V05.md");
+const release = process.argv.includes("--v100") ? "V100" : "V051";
+const titleVersion = release === "V100" ? "v1.0" : "v0.5.1";
+const outputPath = path.resolve(`PLAYTEST_REPORT_SOCIAL_ENGINE_${release}.md`);
 const projectUrl = "https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in";
 const sourceUrl = "https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father";
+const demoUrl = "https://bluntforceriot.github.io/social-engine-context-collapse/";
+const repoUrl = "https://github.com/BluntforceRiot/social-engine-context-collapse";
 
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
@@ -23,11 +27,20 @@ results.push(check("Old v0.4 public note removed", (await page.getByText("full s
 await page.getByRole("button", { name: "Start Run" }).click();
 results.push(check("Six daily action cards visible", (await visibleActionCardCount()) === 6));
 results.push(check("Hand refresh button visible", await page.getByRole("button", { name: /Refresh Free/ }).isVisible()));
+results.push(check("Top-level Victory Paths button visible", await page.getByRole("button", { name: "Victory Paths" }).first().isVisible()));
+results.push(check("Only one main-dashboard Victory Paths button visible", (await page.getByRole("button", { name: "Victory Paths" }).count()) === 1));
 const handBefore = await page.locator(".action-card strong").allTextContents();
 await page.getByRole("button", { name: /Refresh Free/ }).click();
 const handAfter = await page.locator(".action-card strong").allTextContents();
 results.push(check("Refresh changes the hand", handBefore.join("|") !== handAfter.join("|")));
 results.push(check("Fatigue labels shown on cards", (await page.locator(".freshness").count()) === 6));
+await page.getByRole("button", { name: "Victory Paths" }).first().click();
+results.push(check("Victory Paths drawer opens", await page.locator(".victory-paths-drawer").isVisible()));
+results.push(check("Victory Paths drawer lists all seven paths", (await page.locator(".victory-paths-drawer .path-detail-card").count()) === 7));
+results.push(check("Victory Paths drawer has no literal mandatory asterisks", !(await page.locator(".victory-paths-drawer").innerText()).includes("*")));
+results.push(check("Victory Paths drawer shows completed and next sections", await page.getByText("Completed").first().isVisible() && await page.getByText("Next").first().isVisible()));
+await page.keyboard.press("Escape");
+results.push(check("Victory Paths drawer closes on Escape", (await page.locator(".victory-paths-drawer").count()) === 0));
 
 await goto("#/demo-graph-hover");
 results.push(check("Avatar graph renders person avatars", (await page.locator(".person-node-avatar").count()) >= 8));
@@ -38,13 +51,24 @@ results.push(check("Visible graph labels do not collide", graphLabelState.overla
 
 await goto("#/create");
 results.push(check("Actual create-group forecast visible", await page.getByText("Live launch forecast").isVisible()));
+results.push(check("Create-group visual preview visible", await page.getByText("Sample first feed card").isVisible()));
+results.push(check("Create-group likely ally/rival visible", await page.getByText("Likely ally").isVisible()));
+const toneOptions = await page.locator('select[name="tone"] option').allTextContents();
+const ruleOptions = await page.locator('select[name="rules"] option').allTextContents();
+results.push(check("Create-group tone label is title-cased", toneOptions.includes("Wholesome") && toneOptions.includes("Weird But Kind")));
+results.push(check("Create-group rule label is title-cased", ruleOptions.includes("No Link Spam") && ruleOptions.includes("No Miracle JPEGs Without Inspection")));
 results.push(check("Create launch button visible before launch", await page.getByRole("button", { name: "Launch Group" }).isVisible()));
 await goto("#/demo-manage-group");
-results.push(check("Manage-group state shown after launch/demo state", await page.getByText(/already live/i).isVisible()));
+results.push(check("Finished manage-group dashboard shown", await page.getByText("Manage Group").isVisible()));
+results.push(check("Manage-group identity card shown", await page.getByText("Group Identity").isVisible()));
+results.push(check("Manage-group recommended actions shown", await page.getByText("Recommended Next Actions").isVisible()));
+results.push(check("Old already-live stub removed", (await page.getByText(/already live/i).count()) === 0));
 
 await goto("#/demo-qwen-invitation");
 results.push(check("Qwen invitation present", await page.getByText("QWEN FRANKLIN HAS SENT YOU AN INVITATION").isVisible()));
 results.push(check("Qwen invitation choices present", (await page.locator('[data-ui="respond"]').count()) === 4));
+results.push(check("Qwen invitation uses featured guest wording", await page.getByText("Featured Guest Signal").first().isVisible()));
+results.push(check("Qwen invitation does not use Rare Guest Signal", (await page.getByText("Rare Guest Signal").count()) === 0));
 await assertExternalLink("Visit Founding Father A.I.", projectUrl, "Qwen project link active");
 await assertExternalLink("View Source", sourceUrl, "Qwen source link active");
 
@@ -70,7 +94,10 @@ for (const [route, expected] of Object.entries(victories)) {
   const title = await page.locator(".end-card h2").textContent();
   results.push(check(`${expected} route has correct primary ending`, title?.includes(expected)));
   results.push(check(`${expected} shows completed milestones`, (await page.locator(".ending-explain-grid li").count()) > 0));
-  results.push(check(`${expected} shows strategy explanation`, await page.getByText("Different Strategy").isVisible()));
+  results.push(check(`${expected} shows why-this-path-won explanation`, await page.getByText("Why This Path Won").isVisible()));
+  results.push(check(`${expected} uses Final Action label`, await page.getByText("Final Action").isVisible()));
+  results.push(check(`${expected} shows Decisive Moment`, await page.getByText("Decisive Moment").isVisible()));
+  results.push(check(`${expected} hides failure strategy label`, (await page.getByText("Different Strategy").count()) === 0));
 }
 
 const failures = {
@@ -88,12 +115,15 @@ for (const [route, expected] of Object.entries(failures)) {
   results.push(check(`${expected} route has correct failure`, body.includes(expected)));
   results.push(check(`${expected} does not show contradictory missing collapse`, !body.includes("Worst Context Collapse\nNo context collapse yet")));
   results.push(check(`${expected} uses Failure Cause label`, body.includes("Failure Cause")));
+  results.push(check(`${expected} keeps Different Strategy label`, body.includes("Different Strategy")));
 }
 
 await goto("#/credits");
 results.push(check("About/Credits competitor card visible", await page.getByText("GUEST SIGNAL FROM THE COMPETITION").isVisible()));
 await assertExternalLink("Visit Founding Father A.I.", projectUrl, "Credits project link active");
 await assertExternalLink("View Source", sourceUrl, "Credits source link active");
+await assertExternalLink("PLAY LIVE DEMO", demoUrl, "Credits live demo link active");
+await assertExternalLink("VIEW REPOSITORY", repoUrl, "Credits repository link active");
 
 for (const viewport of [
   { width: 1920, height: 1080 },
@@ -102,13 +132,20 @@ for (const viewport of [
   { width: 1280, height: 720 },
 ]) {
   await page.setViewportSize(viewport);
-  for (const route of ["#/demo-main", "#/demo-graph-hover", "#/demo-victory-organizer", "#/credits"]) {
+  for (const route of ["", "#/howto", "#/demo-main", "#/demo-graph-hover", "#/demo-qwen-invitation", "#/demo-victory-organizer", "#/credits", "#/demo-manage-group", "#/create"]) {
     await goto(route);
     await page.waitForTimeout(100);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     results.push(check(`No horizontal overflow at ${viewport.width}x${viewport.height} on ${route}`, overflow <= 1));
     if (route === "#/demo-main") {
       results.push(check(`Six cards visible at ${viewport.width}x${viewport.height}`, (await visibleActionCardCount()) === 6));
+      await page.getByRole("button", { name: "Victory Paths" }).first().click();
+      results.push(check(`Victory Paths accessible at ${viewport.width}x${viewport.height}`, await page.locator(".victory-paths-drawer").isVisible()));
+      await page.keyboard.press("Escape");
+      results.push(check(`Victory Paths closes cleanly at ${viewport.width}x${viewport.height}`, (await page.locator(".victory-paths-drawer").count()) === 0));
+    }
+    if (route === "#/demo-manage-group") {
+      results.push(check(`Manage Group is not empty at ${viewport.width}x${viewport.height}`, (await page.locator(".manage-grid article").count()) >= 6));
     }
   }
 }
@@ -117,7 +154,7 @@ await browser.close();
 
 const failed = results.filter((result) => !result.pass);
 const report = [
-  "# Social Engine v0.5 Browser Playtest Report",
+  `# Social Engine ${titleVersion} Browser Playtest Report`,
   "",
   `Base URL: ${baseUrl}`,
   `Generated: ${new Date().toISOString()}`,

@@ -7,7 +7,7 @@ export const QWEN_FRANKLIN_PROJECT_TITLE = "Founding Father A.I. / Qwen Franklin
 export const QWEN_FRANKLIN_CREATOR = "Myles";
 export const QWEN_FRANKLIN_PUBLIC_CREDIT =
   "Qwen Franklin is a credited competitor reference to Myles's Founding Father A.I. / Qwen Franklin project.";
-export const QWEN_FRANKLIN_GUEST_BANNER = "GUEST SIGNAL FROM MYLES'S FOUNDING FATHER A.I.";
+export const QWEN_FRANKLIN_GUEST_BANNER = "FEATURED GUEST SIGNAL FROM MYLES'S FOUNDING FATHER A.I.";
 export const QWEN_FRANKLIN_PROJECT_URL = "https://merlinforge.substack.com/p/founding-father-ai-a-real-llm-in";
 export const QWEN_FRANKLIN_REPOSITORY_URL =
   "https://github.com/myles-mf/summer-into-ai-2026/tree/main/week-1/founding-father";

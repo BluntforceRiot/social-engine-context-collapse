@@ -264,6 +264,7 @@ export interface RunSummary {
   completedMilestones: string[];
   missedThresholds: string[];
   biggestTurningPoint: string;
+  decisiveMoment: string;
   strategyHint: string;
   triggeringEvent: string;
   score: number;

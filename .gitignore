@@ -3,6 +3,7 @@ dist/
 .vite/
 coverage/
 .tmp-balance-v05/
+.tmp-review-*/
 *.log
 *.zip
 *.pid
@@ -14,6 +15,9 @@ yarn-debug.log*
 yarn-error.log*
 BUILD_RECEIPT_SOCIAL_ENGINE_V*.md
 BUILD_LOG_SOCIAL_ENGINE_V*.txt
+BALANCE_REPORT_SOCIAL_ENGINE_V*.md
+PLAYTEST_REPORT_SOCIAL_ENGINE_V*.md
+PACKAGE_VERIFY_SOCIAL_ENGINE_V*.md
 PLAYTEST_SOCIAL_ENGINE_V*.txt
 social-engine-v*-review.zip
 BUILD_RECEIPT_SOCIAL_ENGINE_QWEN*.md

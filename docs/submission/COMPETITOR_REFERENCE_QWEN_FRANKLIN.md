@@ -23,7 +23,7 @@ See `THIRD_PARTY_NOTICES.md` for the public notice.
 - Unlockable community: `Founders & Future Society`
 - Unique context-collapse event: `AUNT JPEG THINKS QWEN FRANKLIN IS REAL`
 - Public About/Credits card: `GUEST SIGNAL FROM THE COMPETITION`
-- Non-scoring About/Credits preview: `Preview Qwen Franklin Event`
+- Non-scoring About/Credits preview: `Preview Featured Guest Signal`
 - Original SVG guest avatar: `public/assets/qwen-franklin-avatar.svg`
 - Active button: `Visit Founding Father A.I.`
 - Active source button: `View Source`
