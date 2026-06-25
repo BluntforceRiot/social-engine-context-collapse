@@ -51,6 +51,21 @@ const FOLLOWER_LIMITS: Record<FollowerKey, [number, number]> = {
   realityRelatives: [0, 999],
 };
 
+const BENEFICIAL_METRICS = new Set<MetricKey>([
+  "reach",
+  "trust",
+  "agency",
+  "belonging",
+  "skillCred",
+]);
+
+const BENEFICIAL_FOLLOWERS = new Set<FollowerKey>([
+  "closeFriends",
+  "nicheMembers",
+  "casualFollowers",
+  "opportunityContacts",
+]);
+
 const PATH_NAMES: PathKey[] = [
   "Community",
   "Viral",
@@ -69,6 +84,12 @@ const HAND_SECTIONS = [
   "interest",
   "wildcard",
 ] as const;
+
+interface AppliedDeltas {
+  metrics: Partial<Metrics>;
+  followers: Partial<Followers>;
+  relationships: Partial<Record<RelationshipKey, number>>;
+}
 
 const responseEffects: Record<
   ResponseKey,
@@ -96,7 +117,7 @@ const responseEffects: Record<
   },
   lean: {
     title: "Leaned Into Reach",
-    effects: { reach: 430, drama: 14, heat: 12, trust: -8, agency: 4, burnout: 7 },
+    effects: { reach: 430, drama: 13, heat: 11, trust: -7, agency: 4, burnout: 6 },
     followers: { casualFollowers: 35, dramaFollowers: 24, opportunityContacts: 1 },
     affectedNodes: ["Cousin Reply Guy", "Former Classmate Darren"],
     feedText: "The numbers jump. The room temperature does too.",
@@ -238,7 +259,7 @@ export function createInitialState(
     },
   ];
 
-  return {
+  const state: GameState = {
     day: 1,
     interestIds: safeInterestIds,
     actionHistoryIds: [],
@@ -286,6 +307,8 @@ export function createInitialState(
     repairsMade: 0,
     scorePreview: 0,
   };
+  state.scorePreview = calculateScore(state);
+  return state;
 }
 
 export function getAction(id: string): ActionCard | undefined {
@@ -442,7 +465,7 @@ export function playAction(state: GameState, actionId: string): GameState {
   }
 
   applyEffects(next, action.effects, freshness.multiplier);
-  applyFollowers(next, action.followers);
+  applyFollowers(next, action.followers, freshness.multiplier);
   applyRelationships(next, action.relationships);
   applyActionMilestones(next, action, freshness.multiplier);
 
@@ -492,8 +515,8 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
   next.actionUseDays["join-community"] = [...(next.actionUseDays["join-community"] ?? []), next.day].slice(-12);
   next.recentPost = `Joined ${community.name}`;
   next.affectedNodes = community.tone === "healthy" ? ["Local Admin Carol", "Coworker Maya"] : ["Aunt JPEG", "Uncle Signal", "Coworker Maya"];
-  applyEffects(next, community.joinEffects);
-  applyFollowers(next, community.joinFollowers);
+  const effectDeltas = applyEffects(next, community.joinEffects);
+  const followerDeltas = applyFollowers(next, community.joinFollowers);
   next.pathMilestones.community.memberSupportActions += 1;
   next.pathMilestones.community.recurringContributors += community.tone === "healthy" ? 1 : 0;
   next.pathMilestones.community.helpfulMemberEvents += community.tone === "healthy" ? 1 : 0;
@@ -508,7 +531,11 @@ export function joinCommunity(state: GameState, communityId: string): GameState 
     kind: "feed",
     title: `Joined ${community.name}`,
     body: `${community.hook} Upside: ${community.upside}. Risk: ${community.risk}`,
-    effectsText: summarizeEffects(community.joinEffects, community.joinFollowers),
+    effectsText: summarizeDeltas({
+      metrics: effectDeltas,
+      followers: followerDeltas,
+      relationships: {},
+    }),
     audience: `${community.name} members and their rivals`,
     context: community.tone === "healthy" ? "Contained" : "Fraying",
     source: "community join",
@@ -556,8 +583,8 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
   next.actionUseDays["create-group"] = [...(next.actionUseDays["create-group"] ?? []), next.day].slice(-12);
   next.recentPost = `Created ${group.name}`;
   next.affectedNodes = ["Local Admin Carol", "Old Friend Nate"];
-  applyEffects(next, tradeoffs.effects);
-  applyFollowers(next, tradeoffs.followers);
+  const effectDeltas = applyEffects(next, tradeoffs.effects);
+  const followerDeltas = applyFollowers(next, tradeoffs.followers);
   next.pathMilestones.community.memberSupportActions += 1;
   next.pathMilestones.community.recurringContributors += Math.max(1, Math.round(tradeoffs.members / 18));
   next.pathMilestones.organizer.recurringParticipants += Math.max(1, Math.round(tradeoffs.members / 10));
@@ -566,7 +593,11 @@ export function createGroup(state: GameState, group: CreatedGroup): GameState {
     kind: "feed",
     title: `${group.name} Is Live`,
     body: `The first post is "${group.firstPost}" and the rules say "${group.rules}." It starts as a small independence engine with visible tradeoffs.`,
-    effectsText: summarizeEffects(tradeoffs.effects, tradeoffs.followers),
+    effectsText: summarizeDeltas({
+      metrics: effectDeltas,
+      followers: followerDeltas,
+      relationships: {},
+    }),
     source: "new group launch",
     audience: tradeoffs.audience,
     context: tradeoffs.context,
@@ -1059,15 +1090,16 @@ export function createDemoState(
   state.scorePreview = calculateScore(state);
 
   if (kind === "viral") {
+    const effectDeltas = applyEffects(state, { reach: 1200, drama: 16, heat: 13 });
+    const followerDeltas = applyFollowers(state, { casualFollowers: 54, dramaFollowers: 28, opportunityContacts: 2 });
     state.report = {
       kind: "viral",
       title: "Your Linux Rant Went Viral",
       body: "The thread escaped the Linux Forum, gained three job leads, and convinced Aunt JPEG that Linux is a county ordinance.",
-      effectsText: ["+1200 Reach", "+1 Opportunity Contact", "+16 Drama", "+13 Algorithm Heat"],
+      effectsText: summarizeDeltas({ metrics: effectDeltas, followers: followerDeltas, relationships: {} }),
       source: "expert boost plus reply fight",
       audience: "Linux Forum, coworkers, relatives, printer people",
       context: "Escaped",
-      followerBreakdown: ["+54 Casual Followers", "+28 Drama Followers", "+2 Opportunity Contacts"],
       benefited: "Linux Forum Mentor and opportunity contacts",
       annoyed: "Coworker Maya and Aunt JPEG",
       affectedNodes: ["Linux Forum Mentor", "Coworker Maya", "Aunt JPEG", "Cousin Reply Guy"],
@@ -1078,16 +1110,21 @@ export function createDemoState(
   }
 
   if (kind === "collapse") {
-    applyEffects(state, { drama: 34, heat: 28, trust: -18, realityDrift: 12 });
+    const effectDeltas = applyEffects(state, { drama: 34, heat: 28, trust: -18, realityDrift: 12 });
+    const followerDeltas = applyFollowers(state, { dramaFollowers: 12 });
+    const relationshipDeltas = applyRelationships(state, { "Coworker Maya": -10 });
     state.report = {
       kind: "collapse",
       title: "Context Collapse: Golf Joke Reaches Coworkers",
       body: "The Golf Swing Lab laughed. Coworker Maya did not. Uncle Signal thinks the sand trap is a metaphor.",
-      effectsText: ["-12 Trust", "+22 Drama", "+18 Algorithm Heat", "Coworker Maya -10"],
+      effectsText: summarizeDeltas({
+        metrics: effectDeltas,
+        followers: followerDeltas,
+        relationships: relationshipDeltas,
+      }),
       source: "screenshot spread",
       audience: "Golf Swing Lab, coworkers, family watchers",
       context: "Escaped",
-      followerBreakdown: ["+15 Drama Followers", "-1 Close Friend"],
       benefited: "Cousin Reply Guy",
       annoyed: "Coworker Maya",
       affectedNodes: ["Coworker Maya", "Uncle Signal", "Cousin Reply Guy", "Golf Friend Rick"],
@@ -1135,12 +1172,13 @@ export function createDemoState(
     state.qwenAuntCollapseSeen = true;
     state.joinedCommunityIds = ["linux-forum", "founders-future-society"];
     state.affectedNodes = ["Aunt JPEG", "Uncle Signal", "Cousin Reply Guy", "Linux Forum Mentor"];
-    applyEffects(state, { drama: 24, heat: 14, realityDrift: 14, trust: -8 });
+    const effectDeltas = applyEffects(state, { drama: 24, heat: 14, realityDrift: 14, trust: -8 });
+    const followerDeltas = applyFollowers(state, { dramaFollowers: 8, realityRelatives: 4 });
     state.report = {
       kind: "collapse",
       title: "AUNT JPEG THINKS QWEN FRANKLIN IS REAL",
       body: "Aunt JPEG insists the account proves Benjamin Franklin is alive. Uncle Signal believes he is transmitting from 1776. Cousin Reply Guy has started an electricity argument under the demo link.",
-      effectsText: ["-4 Trust", "+12 Drama", "+8 Algorithm Heat", "+10 Reality Drift"],
+      effectsText: summarizeDeltas({ metrics: effectDeltas, followers: followerDeltas, relationships: {} }),
       source: "media-literacy context collapse",
       audience: "family thread, builders, demo lurkers",
       context: "Escaped",
@@ -1190,6 +1228,8 @@ export function createDemoState(
     prepareFailureDemo(state, kind);
   }
 
+  updateImmediateDerivedValues(state);
+  state.scorePreview = calculateScore(state);
   return state;
 }
 
@@ -1389,26 +1429,22 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
 
   if (reportLane === "viral") {
     const viralGain = 420 + Math.round(state.metrics.heat * 6 + action.viralPotential * 18);
+    const effectDeltas = applyEffects(state, { reach: viralGain, drama: 10, heat: 10, burnout: 3, agency: 4 });
+    const followerDeltas = applyFollowers(state, { casualFollowers: 32, dramaFollowers: 18, opportunityContacts: 1 });
     const report: DayReport = {
       kind: "viral",
       title: `${action.title} Escapes The Barn`,
       body: `${PLATFORM_NAME} pushes it beyond the intended room. Opportunity knocks, then Cousin Reply Guy knocks louder.`,
-      effectsText: summarizeEffects(
-        { reach: viralGain, drama: 10, heat: 10, burnout: 3, agency: 4 },
-        { casualFollowers: 32, dramaFollowers: 18, opportunityContacts: 1 },
-      ),
+      effectsText: summarizeDeltas({ metrics: effectDeltas, followers: followerDeltas, relationships: {} }),
       source: sample(["community share", "reply fight", "algorithm bump", "screenshot spread", "expert boost"]),
       audience: inferAudience(action.tags),
       context: "Escaped",
-      followerBreakdown: ["+32 Casual Followers", "+18 Drama Followers", "+1 Opportunity Contact"],
       benefited: action.tags.includes("knowledge") ? "skill credibility" : "raw reach",
       annoyed: action.tags.includes("family") ? "Concerned Relative" : "Coworker Maya",
       affectedNodes: Array.from(new Set([...affectedFromRelationships(action.relationships), "Cousin Reply Guy", "Coworker Maya"])),
       responseOptions: ["clarify", "private", "lean", "delete", "pin", "mute", "tutorial", "logoff"],
       responseRequired: true,
     };
-    applyEffects(state, { reach: viralGain, drama: 10, heat: 10, burnout: 3, agency: 4 });
-    applyFollowers(state, { casualFollowers: 32, dramaFollowers: 18, opportunityContacts: 1 });
     state.pathMilestones.viral.viralEvents += 1;
     state.pathMilestones.viral.peakReach = Math.max(state.pathMilestones.viral.peakReach, state.metrics.reach);
     state.biggestViralEvent = report.title;
@@ -1416,26 +1452,22 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
   }
 
   if (reportLane === "collapse") {
+    const effectDeltas = applyEffects(state, { trust: -8, drama: 11, heat: 8, burnout: 4 });
+    const followerDeltas = applyFollowers(state, { dramaFollowers: 12 });
     const report: DayReport = {
       kind: "collapse",
       title: "Context Collapse: The Wrong Room Found It",
       body: "A post meant for one circle arrives in another with all the nuance sanded off.",
-      effectsText: summarizeEffects(
-        { trust: -8, drama: 13, heat: 10, burnout: 5 },
-        { dramaFollowers: 12 },
-      ),
+      effectsText: summarizeDeltas({ metrics: effectDeltas, followers: followerDeltas, relationships: {} }),
       source: sample(["family argument", "screenshot spread", "quote-share", "reply fight"]),
       audience: "close friends, relatives, coworkers, strangers",
       context: "Escaped",
-      followerBreakdown: ["+15 Drama Followers", "-1 Close Friend"],
       benefited: "Cousin Reply Guy",
       annoyed: "Old Friend Nate",
       affectedNodes: Array.from(new Set([...affectedFromRelationships(action.relationships), "Old Friend Nate", "Concerned Relative", "Cousin Reply Guy"])),
       responseOptions: ["clarify", "private", "delete", "apologize", "friend", "mute", "logoff"],
       responseRequired: true,
     };
-    applyEffects(state, { trust: -8, drama: 13, heat: 10, burnout: 5 });
-    applyFollowers(state, { dramaFollowers: 12 });
     state.pathMilestones.viral.destructiveViralEvents += 1;
     state.worstContextCollapse = report.title;
     return report;
@@ -1446,13 +1478,13 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
   );
   const eventPool = matchingEvents.length ? matchingEvents : FEED_EVENTS;
   const event = sample(eventPool);
-  applyFeedEvent(state, event);
+  const eventDeltas = applyFeedEvent(state, event);
   applyFeedEventMilestones(state, event);
   return {
     kind: "feed",
     title: event.title,
     body: event.body,
-    effectsText: summarizeEffects(event.effects, event.followers),
+    effectsText: summarizeDeltas(eventDeltas),
     source: "feed reaction",
     audience: inferAudience(event.tags),
     context: inferContext(state, event.tags),
@@ -1564,9 +1596,9 @@ function maybeBuildQwenAuntCollapseReport(state: GameState, action: ActionCard):
   state.qwenAuntCollapseSeen = true;
   state.worstContextCollapse = "Aunt JPEG thought Qwen Franklin was real.";
   state.pathMilestones.viral.destructiveViralEvents += 1;
-  applyEffects(state, { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 });
-  applyFollowers(state, { dramaFollowers: 8, realityRelatives: 4 });
-  applyRelationships(state, { "Aunt JPEG": -5, "Uncle Signal": -3, "Cousin Reply Guy": -2 });
+  const effectDeltas = applyEffects(state, { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 });
+  const followerDeltas = applyFollowers(state, { dramaFollowers: 8, realityRelatives: 4 });
+  const relationshipDeltas = applyRelationships(state, { "Aunt JPEG": -5, "Uncle Signal": -3, "Cousin Reply Guy": -2 });
   const affectedNodes = ["Aunt JPEG", "Uncle Signal", "Cousin Reply Guy", "Linux Forum Mentor"];
   state.affectedNodes = Array.from(new Set([...state.affectedNodes, ...affectedNodes]));
 
@@ -1574,10 +1606,11 @@ function maybeBuildQwenAuntCollapseReport(state: GameState, action: ActionCard):
     kind: "collapse",
     title: "AUNT JPEG THINKS QWEN FRANKLIN IS REAL",
     body: "Aunt JPEG insists the account proves Benjamin Franklin is alive. Uncle Signal believes he is transmitting from 1776. Cousin Reply Guy has started an electricity argument under the demo link.",
-    effectsText: summarizeEffects(
-      { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 },
-      { dramaFollowers: 8, realityRelatives: 4 },
-    ),
+    effectsText: summarizeDeltas({
+      metrics: effectDeltas,
+      followers: followerDeltas,
+      relationships: relationshipDeltas,
+    }),
     source: "media-literacy context collapse",
     audience: "family thread, builders, demo lurkers",
     context: "Escaped",
@@ -1593,13 +1626,18 @@ function maybeBuildQwenAuntCollapseReport(state: GameState, action: ActionCard):
   };
 }
 
-function applyFeedEvent(state: GameState, event: FeedEvent): void {
-  applyEffects(state, event.effects);
-  applyFollowers(state, event.followers);
-  applyRelationships(state, event.relationships);
+function applyFeedEvent(state: GameState, event: FeedEvent): AppliedDeltas {
+  const effectDeltas = applyEffects(state, event.effects);
+  const followerDeltas = applyFollowers(state, event.followers);
+  const relationshipDeltas = applyRelationships(state, event.relationships);
   if (event.tags.includes("context")) {
     state.worstContextCollapse = event.title;
   }
+  return {
+    metrics: effectDeltas,
+    followers: followerDeltas,
+    relationships: relationshipDeltas,
+  };
 }
 
 function applyFeedEventMilestones(state: GameState, event: FeedEvent): void {
@@ -1909,12 +1947,19 @@ function hasHealthyCommunityForCompletedDay(state: GameState): boolean {
   );
 }
 
-function applyEffects(state: GameState, effects: Partial<Metrics> = {}, multiplier = 1): void {
+function applyEffects(state: GameState, effects: Partial<Metrics> = {}, multiplier = 1): Partial<Metrics> {
+  const deltas: Partial<Metrics> = {};
   for (const [key, value] of Object.entries(effects) as [MetricKey, number][]) {
     const [min, max] = METRIC_LIMITS[key];
-    const scaledValue = value > 0 ? value * multiplier : value;
+    const before = state.metrics[key];
+    const scaledValue = value > 0 && BENEFICIAL_METRICS.has(key) ? value * multiplier : value;
     state.metrics[key] = clamp(state.metrics[key] + scaleMetricDelta(key, state.metrics[key], scaledValue), min, max);
+    const actual = state.metrics[key] - before;
+    if (actual) {
+      deltas[key] = actual;
+    }
   }
+  return deltas;
 }
 
 function scaleMetricDelta(key: MetricKey, current: number, delta: number): number {
@@ -1936,20 +1981,35 @@ function scaleMetricDelta(key: MetricKey, current: number, delta: number): numbe
   return Math.round(delta);
 }
 
-function applyFollowers(state: GameState, followers: Partial<Followers> = {}): void {
+function applyFollowers(state: GameState, followers: Partial<Followers> = {}, multiplier = 1): Partial<Followers> {
+  const deltas: Partial<Followers> = {};
   for (const [key, value] of Object.entries(followers) as [FollowerKey, number][]) {
     const [min, max] = FOLLOWER_LIMITS[key];
-    state.followers[key] = clamp(state.followers[key] + value, min, max);
+    const before = state.followers[key];
+    const scaledValue = value > 0 && BENEFICIAL_FOLLOWERS.has(key) ? Math.round(value * multiplier) : value;
+    state.followers[key] = clamp(state.followers[key] + scaledValue, min, max);
+    const actual = state.followers[key] - before;
+    if (actual) {
+      deltas[key] = actual;
+    }
   }
+  return deltas;
 }
 
 function applyRelationships(
   state: GameState,
   relationships: Partial<Record<RelationshipKey, number>> = {},
-): void {
+): Partial<Record<RelationshipKey, number>> {
+  const deltas: Partial<Record<RelationshipKey, number>> = {};
   for (const [name, value] of Object.entries(relationships) as [RelationshipKey, number][]) {
+    const before = state.relationships[name];
     state.relationships[name] = clamp(state.relationships[name] + value, 0, 100);
+    const actual = state.relationships[name] - before;
+    if (actual) {
+      deltas[name] = actual;
+    }
   }
+  return deltas;
 }
 
 function checkFailure(state: GameState): string | undefined {
@@ -1998,7 +2058,8 @@ function pickEnding(state: GameState): EndingDecision {
     title: secondary ? `Hybrid Victory: ${primary.name} + ${secondary.name}` : `${primary.name} Victory`,
     primaryPath: primary.name,
     secondaryPath: secondary?.name,
-    strongestRemainingPath: progress.find((path) => path.name !== primary.name)?.name ?? "None",
+    strongestRemainingPath:
+      progress.find((path) => path.name !== primary.name && path.name !== secondary?.name)?.name ?? "None",
     completedMilestones: completedMilestoneLabels(state, primary.name, secondary?.name),
     missedThresholds: missedMilestoneLabels(state, primary.name, secondary?.name),
     biggestTurningPoint: biggestTurningPoint(state),
@@ -2194,6 +2255,18 @@ function summarizeEffects(effects: Partial<Metrics> = {}, followers: Partial<Fol
   return [...metricText, ...followerText].filter(Boolean);
 }
 
+function summarizeDeltas(deltas: AppliedDeltas): string[] {
+  const metricText = Object.entries(deltas.metrics).map(([key, value]) => formatDelta(labelMetric(key), value));
+  const followerText = Object.entries(deltas.followers).map(([key, value]) =>
+    formatDelta(labelFollower(key), value),
+  );
+  const relationshipText = Object.entries(deltas.relationships).map(([key, value]) =>
+    formatDelta(key, value),
+  );
+  const summary = [...metricText, ...followerText, ...relationshipText].filter(Boolean);
+  return summary.length ? summary : ["No numeric change"];
+}
+
 function formatDelta(label: string, value: number): string {
   const sign = value > 0 ? "+" : "";
   return `${sign}${value} ${label}`;
@@ -2292,9 +2365,8 @@ function pathDisqualified(state: GameState, path: string): boolean {
 function completedMilestoneLabels(state: GameState, primary = "", secondary = ""): string[] {
   const allowed = new Set([primary, secondary].filter(Boolean));
   return getVictoryMilestones(state)
-    .filter((item) => (!allowed.size || allowed.has(item.path)) && item.complete)
-    .map((item) => `${item.path}: ${item.label}`)
-    .slice(0, 10);
+    .filter((item) => (!allowed.size || allowed.has(item.path)) && item.mandatory && item.complete)
+    .map((item) => `${item.path}: ${item.label}`);
 }
 
 function missedMilestoneLabels(state: GameState, primary = "", secondary = ""): string[] {
@@ -2503,9 +2575,6 @@ function cloneState(state: GameState): GameState {
       ? {
           ...state.report,
           effectsText: [...state.report.effectsText],
-          followerBreakdown: state.report.followerBreakdown
-            ? [...state.report.followerBreakdown]
-            : undefined,
           affectedNodes: state.report.affectedNodes ? [...state.report.affectedNodes] : undefined,
           responseOptions: state.report.responseOptions ? [...state.report.responseOptions] : undefined,
           guestAvatar: state.report.guestAvatar,

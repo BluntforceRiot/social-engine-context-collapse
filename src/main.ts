@@ -371,6 +371,8 @@ function routeFromHash(): void {
   } else if (route === "scores") {
     screen = "scores";
   } else if (route === "community") {
+    screen = "community";
+  } else if (route === "demo-community") {
     game = createDemoState("main");
     screen = "community";
   } else if (route === "create") {
@@ -945,7 +947,7 @@ function renderEndScreen(): string {
             <p>${escapeHtml(summary.strategyHint)}</p>
           </article>
           ${
-            summary.outcome === "victory"
+            summary.outcome === "victory" && shouldShowClosestAlternative(summary)
               ? `<article>
                   <h3>Closest Alternative</h3>
                   <p>${escapeHtml(summary.strongestRemainingPath)} was the closest alternate path, but the credited ending completed the cleaner milestone set.</p>
@@ -1205,7 +1207,6 @@ function renderReport(report: GameState["report"]): string {
         </div>
         <div class="effects-list">
           ${report.effectsText.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
-          ${(report.followerBreakdown ?? []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
         </div>
         ${report.mechanicalNote ? `<p class="modal-footnote">${escapeHtml(report.mechanicalNote)}</p>` : ""}
         ${responseButtons}
@@ -1657,6 +1658,14 @@ function summaryItem(label: string, value: string): string {
 function shouldShowBiggestTurningPoint(summary: RunSummary): boolean {
   const turningPoint = normalizeSummaryText(summary.biggestTurningPoint);
   return turningPoint !== normalizeSummaryText(summary.triggeringEvent) && turningPoint !== normalizeSummaryText(summary.decisiveMoment);
+}
+
+function shouldShowClosestAlternative(summary: RunSummary): boolean {
+  return (
+    summary.strongestRemainingPath !== "None" &&
+    normalizeSummaryText(summary.strongestRemainingPath) !== normalizeSummaryText(summary.primaryEnding) &&
+    normalizeSummaryText(summary.strongestRemainingPath) !== normalizeSummaryText(summary.secondaryEnding ?? "")
+  );
 }
 
 function normalizeSummaryText(value: string): string {

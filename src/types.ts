@@ -219,7 +219,6 @@ export interface DayReport {
   source?: string;
   audience?: string;
   context?: "Contained" | "Escaped" | "Fraying";
-  followerBreakdown?: string[];
   benefited?: string;
   annoyed?: string;
   affectedNodes?: string[];

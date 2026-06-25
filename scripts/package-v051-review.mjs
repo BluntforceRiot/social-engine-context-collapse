@@ -35,6 +35,10 @@ const includePaths = [
   `PLAYTEST_REPORT_SOCIAL_ENGINE_${suffix}.md`,
 ];
 
+if (release === "v100") {
+  includePaths.push(`REGRESSION_REPORT_SOCIAL_ENGINE_${suffix}.md`);
+}
+
 const requiredFiles = [
   "package.json",
   "package-lock.json",
@@ -49,6 +53,10 @@ const requiredFiles = [
   `BALANCE_REPORT_SOCIAL_ENGINE_${suffix}.md`,
   `PLAYTEST_REPORT_SOCIAL_ENGINE_${suffix}.md`,
 ];
+
+if (release === "v100") {
+  requiredFiles.push(`REGRESSION_REPORT_SOCIAL_ENGINE_${suffix}.md`);
+}
 
 try {
   await rm(tmpRoot, { recursive: true, force: true });
@@ -89,6 +97,7 @@ try {
     "",
     `Generated: ${new Date().toISOString()}`,
     `Zip: ${zipPath}`,
+    "Verification report placement: adjacent to the zip, not inside it, so the exact final archive is the archive extracted and rebuilt.",
     "",
     "## Entry Inspection",
     "",
@@ -108,12 +117,6 @@ try {
   ].join("\n");
 
   await writeFile(verifyReportPath, report, "utf8");
-  await cp(verifyReportPath, path.join(stageDir, `PACKAGE_VERIFY_SOCIAL_ENGINE_${suffix}.md`));
-  run("tar", ["-a", "-cf", zipPath, "-C", stageDir, "."]);
-  const finalList = run("tar", ["-tf", zipPath]).stdout.split(/\r?\n/).filter(Boolean);
-  if (finalList.some((entry) => entry.includes("\\"))) {
-    throw new Error("Final zip contains backslash entries after adding verification report");
-  }
 
   console.log(report);
 } finally {
