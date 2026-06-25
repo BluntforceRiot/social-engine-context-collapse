@@ -73,6 +73,35 @@ results.push(check("Create Group report shows actual clamped deltas", () => {
   return reportMatchesStateDelta(before, after, after.report, { relationships: false });
 }));
 
+results.push(check("Create Group forecast shows actual clamped launch deltas", () => {
+  const before = sim.createInitialState();
+  before.metrics.trust = 90;
+  before.metrics.agency = 91;
+  before.metrics.skillCred = 94;
+  const premise = "Local creator circle";
+  const tone = "technical";
+  const rules = "cite your sources";
+  const firstPost = "What are you building this week?";
+  const forecast = sim.getGroupLaunchForecast(before, premise, tone, rules, firstPost);
+  const after = sim.createGroup(before, {
+    name: "Forecast Truth Room",
+    premise,
+    tone,
+    rules,
+    firstPost,
+    members: 0,
+    health: 0,
+  });
+  const parsed = parseEffects(forecast.effectsText);
+  const deltas = diffState(before, after);
+  return (
+    parsed.get("Trust") === deltas.metrics.trust &&
+    parsed.get("Agency") === deltas.metrics.agency &&
+    parsed.get("Skill Cred") === deltas.metrics.skillCred &&
+    !forecast.effectsText.some((item) => item.includes("+7 Trust"))
+  );
+}));
+
 results.push(check("Context-collapse demo has no duplicated or nonexistent follower summary", () => {
   const state = sim.createDemoState("collapse");
   const text = state.report.effectsText.join("|");
@@ -112,6 +141,47 @@ results.push(check("Repeated risky actions scale benefits without reducing hazar
     repeated.followers.dramaFollowers === fresh.followers.dramaFollowers &&
     repeated.followers.realityRelatives === fresh.followers.realityRelatives
   );
+}));
+
+results.push(check("High harmful meters do not get saturation padding", () => {
+  const state = sim.createInitialState();
+  state.metrics.drama = 80;
+  state.metrics.heat = 80;
+  state.metrics.realityDrift = 80;
+  const forecast = sim.getGroupLaunchForecast(
+    state,
+    "Bigfoot weird room",
+    "chaotic",
+    "open rules",
+    "hello everyone",
+  );
+  return (
+    forecast.effectDeltas.drama === 6 &&
+    forecast.effectDeltas.heat === 13 &&
+    forecast.effectDeltas.realityDrift === 6
+  );
+}));
+
+results.push(check("Repeated action milestone credit scales with freshness", () => {
+  const freshBefore = sim.createInitialState();
+  freshBefore.day = 10;
+  const repeatedBefore = sim.createInitialState();
+  repeatedBefore.day = 10;
+  repeatedBefore.actionUseDays["tiny-build-log"] = [6, 7, 8];
+
+  const freshAfter = withRandom(0.99, () => sim.playAction(freshBefore, "tiny-build-log"));
+  const repeatedAfter = withRandom(0.99, () => sim.playAction(repeatedBefore, "tiny-build-log"));
+
+  return (
+    freshAfter.pathMilestones.creator.buildLogsPosted === 1 &&
+    repeatedAfter.pathMilestones.creator.buildLogsPosted === 0.5 &&
+    repeatedAfter.pathMilestones.creator.usefulOutputsPublished < freshAfter.pathMilestones.creator.usefulOutputsPublished
+  );
+}));
+
+results.push(check("Create forecast UI uses actual launch forecast helper", async () => {
+  const main = await readFile("src/main.ts", "utf8");
+  return main.includes("getGroupLaunchForecast(game") && !main.includes("Object.entries(forecast.effects).map");
 }));
 
 results.push(check("Hybrid closest alternative excludes credited primary and secondary paths", () => {

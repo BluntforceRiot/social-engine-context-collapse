@@ -25,6 +25,7 @@ import {
   getFailureWarnings,
   getActionFreshness,
   getDailyActionHand,
+  getGroupLaunchForecast,
   getGroupTradeoffs,
   getVictoryPathProgress,
   joinCommunity,
@@ -1411,6 +1412,7 @@ function renderForecastContent(
   firstPost: string,
 ): string {
   const forecast = getGroupTradeoffs(premise, tone, rules, firstPost);
+  const launchForecast = getGroupLaunchForecast(game, premise, tone, rules, firstPost);
   const postSignal = firstPost.includes("evidence")
     ? "evidence-first launch"
     : firstPost.includes("win")
@@ -1428,7 +1430,7 @@ function renderForecastContent(
       <dt>Tradeoffs</dt><dd>${forecast.tradeoffs.map(escapeHtml).join(", ")}</dd>
     </dl>
     <div class="effects-list small">
-      ${Object.entries(forecast.effects).map(([key, value]) => `<span>${value && value > 0 ? "+" : ""}${value} ${escapeHtml(key)}</span>`).join("")}
+      ${launchForecast.effectsText.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
     </div>
   `;
 }

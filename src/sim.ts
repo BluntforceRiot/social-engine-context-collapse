@@ -117,7 +117,7 @@ const responseEffects: Record<
   },
   lean: {
     title: "Leaned Into Reach",
-    effects: { reach: 430, drama: 13, heat: 11, trust: -7, agency: 4, burnout: 6 },
+    effects: { reach: 430, drama: 9, heat: 8, trust: -5, agency: 4, burnout: 1 },
     followers: { casualFollowers: 35, dramaFollowers: 24, opportunityContacts: 1 },
     affectedNodes: ["Cousin Reply Guy", "Former Classmate Darren"],
     feedText: "The numbers jump. The room temperature does too.",
@@ -477,7 +477,7 @@ export function playAction(state: GameState, actionId: string): GameState {
   const report = buildDayReport(next, action);
   next.report = report;
   if (freshness.label !== "Fresh") {
-    next.report.mechanicalNote = `${next.report.mechanicalNote ? `${next.report.mechanicalNote} ` : ""}${freshness.label}: repeated actions have reduced positive gains this week.`;
+    next.report.mechanicalNote = `${next.report.mechanicalNote ? `${next.report.mechanicalNote} ` : ""}${freshness.label}: repeated actions have reduced positive gains and milestone credit this week.`;
   }
   next.affectedNodes = Array.from(new Set([...next.affectedNodes, ...(report.affectedNodes ?? [])]));
   addFeedItem(next, {
@@ -789,14 +789,20 @@ export function getVictoryMilestones(state: GameState): VictoryMilestone[] {
 
     milestone("Viral", "multiple viral events", progressCount(p.viral.viralEvents, 3), p.viral.viralEvents >= 3, true),
     milestone("Viral", "sustained major reach", Math.min(100, p.viral.peakReach / 24), p.viral.peakReach >= 2200, true),
-    milestone("Viral", "attention converted", progressCount(p.viral.viralOpportunitiesConverted, 2), p.viral.viralOpportunitiesConverted >= 2, true),
-    milestone("Viral", "fallout managed", progressCount(p.viral.falloutManaged, 1), p.viral.falloutManaged >= 1, true),
-    milestone("Viral", "trust survives the spike", (m.trust + (100 - m.burnout)) / 2, m.trust >= 42 && m.burnout <= 76, true),
+    milestone("Viral", "attention converted", progressCount(p.viral.viralOpportunitiesConverted, 3), p.viral.viralOpportunitiesConverted >= 3, true),
+    milestone("Viral", "fallout managed", progressCount(p.viral.falloutManaged, 2), p.viral.falloutManaged >= 2, true),
+    milestone(
+      "Viral",
+      "trust survives the spike",
+      (m.trust + (100 - m.burnout) + (100 - m.drama) + (100 - m.heat)) / 4,
+      m.trust >= 42 && m.burnout <= 76 && m.drama <= 78 && m.heat <= 88,
+      true,
+    ),
     milestone("Viral", "not purely destructive", 100 - p.viral.destructiveViralEvents * 25, p.viral.destructiveViralEvents <= 2, false),
 
-    milestone("Knowledge", "tutorials or useful explainers", progressCount(p.knowledge.tutorialsPosted, 4), p.knowledge.tutorialsPosted >= 4, true),
-    milestone("Knowledge", "people helped", progressCount(p.knowledge.peopleHelped, 9), p.knowledge.peopleHelped >= 9, true),
-    milestone("Knowledge", "expert or mentor interactions", progressCount(p.knowledge.expertInteractions + p.knowledge.mentorInteractions, 4), p.knowledge.expertInteractions + p.knowledge.mentorInteractions >= 4, true),
+    milestone("Knowledge", "tutorials or useful explainers", progressCount(p.knowledge.tutorialsPosted, 3), p.knowledge.tutorialsPosted >= 3, true),
+    milestone("Knowledge", "people helped", progressCount(p.knowledge.peopleHelped, 7), p.knowledge.peopleHelped >= 7, true),
+    milestone("Knowledge", "expert or mentor interactions", progressCount(p.knowledge.expertInteractions + p.knowledge.mentorInteractions, 3), p.knowledge.expertInteractions + p.knowledge.mentorInteractions >= 3, true),
     milestone("Knowledge", "useful threads pinned", progressCount(p.knowledge.usefulThreadsPinned, 2), p.knowledge.usefulThreadsPinned >= 2, true),
     milestone("Knowledge", "skill cred with reality anchored", (m.skillCred + (100 - m.realityDrift)) / 2, m.skillCred >= 64 && m.realityDrift <= 45, true),
 
@@ -818,11 +824,11 @@ export function getVictoryMilestones(state: GameState): VictoryMilestone[] {
     milestone("Organizer", "group challenges completed", progressCount(p.organizer.groupChallengesCompleted, 2), p.organizer.groupChallengesCompleted >= 2, true),
     milestone("Organizer", "offline agency and belonging", (m.agency + m.belonging) / 2, m.agency >= 60 && m.belonging >= 60, true),
 
-    milestone("Escape", "offline days", progressCount(p.escape.offlineDays, 5), p.escape.offlineDays >= 5, true),
-    milestone("Escape", "direct contacts built", progressCount(p.escape.directContactsBuilt, 4), p.escape.directContactsBuilt >= 4, true),
-    milestone("Escape", "boundaries set", progressCount(p.escape.boundariesSet, 3), p.escape.boundariesSet >= 3, true),
-    milestone("Escape", "platform dependence reduced", progressCount(p.escape.platformDependenceReduced, 3), p.escape.platformDependenceReduced >= 3, true),
-    milestone("Escape", "explicit exit plan completed", p.escape.exitPlanCompleted ? 100 : 0, p.escape.exitPlanCompleted, true),
+    milestone("Escape", "offline days", progressCount(p.escape.offlineDays, 4), p.escape.offlineDays >= 4, true),
+    milestone("Escape", "direct contacts built", progressCount(p.escape.directContactsBuilt, 3), p.escape.directContactsBuilt >= 3, true),
+    milestone("Escape", "boundaries set", progressCount(p.escape.boundariesSet, 2), p.escape.boundariesSet >= 2, true),
+    milestone("Escape", "platform dependence reduced", progressCount(p.escape.platformDependenceReduced, 2), p.escape.platformDependenceReduced >= 2, true),
+    milestone("Escape", "explicit exit plan completed", p.escape.exitPlanCompleted ? 100 : 0, p.escape.exitPlanCompleted, false),
     milestone("Escape", "low heat and low burnout", (100 - m.heat + 100 - m.burnout) / 2, m.heat <= 38 && m.burnout <= 38, true),
   ];
 }
@@ -987,6 +993,29 @@ export function getGroupTradeoffs(
     context,
     risk: context === "Fraying" ? "context may fray early" : health > 72 ? "stable but slower" : "manageable launch risk",
     tradeoffs: Array.from(new Set(tradeoffs)).slice(0, 6),
+  };
+}
+
+export function getGroupLaunchForecast(
+  state: GameState,
+  premise: string,
+  tone: string,
+  rules: string,
+  firstPost = "",
+): ReturnType<typeof getGroupTradeoffs> & {
+  effectDeltas: Partial<Metrics>;
+  followerDeltas: Partial<Followers>;
+  effectsText: string[];
+} {
+  const tradeoffs = getGroupTradeoffs(premise, tone, rules, firstPost);
+  const preview = cloneState(state);
+  const effectDeltas = applyEffects(preview, tradeoffs.effects);
+  const followerDeltas = applyFollowers(preview, tradeoffs.followers);
+  return {
+    ...tradeoffs,
+    effectDeltas,
+    followerDeltas,
+    effectsText: summarizeDeltas({ metrics: effectDeltas, followers: followerDeltas, relationships: {} }),
   };
 }
 
@@ -1429,7 +1458,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
 
   if (reportLane === "viral") {
     const viralGain = 420 + Math.round(state.metrics.heat * 6 + action.viralPotential * 18);
-    const effectDeltas = applyEffects(state, { reach: viralGain, drama: 10, heat: 10, burnout: 3, agency: 4 });
+    const effectDeltas = applyEffects(state, { reach: viralGain, drama: 8, heat: 7, burnout: 1, agency: 4 });
     const followerDeltas = applyFollowers(state, { casualFollowers: 32, dramaFollowers: 18, opportunityContacts: 1 });
     const report: DayReport = {
       kind: "viral",
@@ -1452,7 +1481,7 @@ function buildDayReport(state: GameState, action: ActionCard): DayReport {
   }
 
   if (reportLane === "collapse") {
-    const effectDeltas = applyEffects(state, { trust: -8, drama: 11, heat: 8, burnout: 4 });
+    const effectDeltas = applyEffects(state, { trust: -6, drama: 8, heat: 5, burnout: 1 });
     const followerDeltas = applyFollowers(state, { dramaFollowers: 12 });
     const report: DayReport = {
       kind: "collapse",
@@ -1596,7 +1625,7 @@ function maybeBuildQwenAuntCollapseReport(state: GameState, action: ActionCard):
   state.qwenAuntCollapseSeen = true;
   state.worstContextCollapse = "Aunt JPEG thought Qwen Franklin was real.";
   state.pathMilestones.viral.destructiveViralEvents += 1;
-  const effectDeltas = applyEffects(state, { drama: 12, heat: 8, realityDrift: 10, trust: -4, burnout: 3 });
+  const effectDeltas = applyEffects(state, { drama: 10, heat: 6, realityDrift: 10, trust: -4, burnout: 2 });
   const followerDeltas = applyFollowers(state, { dramaFollowers: 8, realityRelatives: 4 });
   const relationshipDeltas = applyRelationships(state, { "Aunt JPEG": -5, "Uncle Signal": -3, "Cousin Reply Guy": -2 });
   const affectedNodes = ["Aunt JPEG", "Uncle Signal", "Cousin Reply Guy", "Linux Forum Mentor"];
@@ -1749,98 +1778,97 @@ function makeComments(tags: string[], kind: DayReport["kind"]): FeedItem["commen
 
 function applyActionMilestones(state: GameState, action: ActionCard, multiplier: number): void {
   const p = state.pathMilestones;
-  const strong = multiplier >= 0.7;
-  const weak = multiplier < 0.45;
+  const gain = (value: number) => scaleMilestoneGain(value, multiplier);
 
   if (action.id === "share-tip" || action.id === "publish-followup-explainer") {
-    p.knowledge.tutorialsPosted += strong ? 1 : 0;
-    p.knowledge.peopleHelped += strong ? 2 : 1;
-    p.creator.usefulOutputsPublished += 1;
+    p.knowledge.tutorialsPosted += gain(1);
+    p.knowledge.peopleHelped += gain(2);
+    p.creator.usefulOutputsPublished += gain(1);
   }
   if (action.id === "ask-expert" || action.id === "ask-linux-help") {
-    p.knowledge.expertInteractions += action.id === "ask-expert" ? 1 : 0;
-    p.knowledge.mentorInteractions += 1;
-    p.knowledge.peopleHelped += weak ? 0 : 1;
+    p.knowledge.expertInteractions += action.id === "ask-expert" ? gain(1) : 0;
+    p.knowledge.mentorInteractions += gain(1);
+    p.knowledge.peopleHelped += gain(1);
   }
   if (action.id === "pin-useful-thread" || action.id === "publish-followup-explainer") {
-    p.knowledge.usefulThreadsPinned += action.id === "pin-useful-thread" ? 1 : 0;
-    p.community.helpfulMemberEvents += 1;
+    p.knowledge.usefulThreadsPinned += action.id === "pin-useful-thread" ? gain(1) : 0;
+    p.community.helpfulMemberEvents += gain(1);
   }
   if (action.id === "tiny-build-log") {
-    p.creator.buildLogsPosted += 1;
-    p.creator.projectMilestones += strong ? 1 : 0;
-    p.creator.usefulOutputsPublished += 1;
+    p.creator.buildLogsPosted += gain(1);
+    p.creator.projectMilestones += gain(1);
+    p.creator.usefulOutputsPublished += gain(1);
   }
   if (action.id === "turn-viral-project") {
-    p.creator.projectMilestones += 1;
-    p.creator.opportunitiesConverted += 1;
-    p.viral.viralOpportunitiesConverted += 1;
+    p.creator.projectMilestones += gain(1);
+    p.creator.opportunitiesConverted += gain(1);
+    p.viral.viralOpportunitiesConverted += gain(1);
   }
   if (action.id === "convert-attention-list" || action.id === "contact-opportunity-lead") {
-    p.viral.viralOpportunitiesConverted += 1;
-    p.creator.opportunitiesConverted += 1;
-    p.creator.collaboratorsFound += 1;
+    p.viral.viralOpportunitiesConverted += gain(1);
+    p.creator.opportunitiesConverted += gain(1);
+    p.creator.collaboratorsFound += gain(1);
   }
   if (action.id === "invite-followers-room") {
-    p.viral.viralOpportunitiesConverted += 1;
-    p.community.helpfulMemberEvents += 1;
-    p.community.recurringContributors += 1;
+    p.viral.viralOpportunitiesConverted += gain(1);
+    p.community.helpfulMemberEvents += gain(1);
+    p.community.recurringContributors += gain(1);
   }
   if (action.id === "signal-boost" || action.id === "celebrate-win") {
-    p.community.helpfulMemberEvents += 1;
-    p.community.memberSupportActions += 1;
+    p.community.helpfulMemberEvents += gain(1);
+    p.community.memberSupportActions += gain(1);
   }
   if (action.id === "recruit-members") {
-    p.community.recurringContributors += 2;
-    p.community.memberSupportActions += 1;
+    p.community.recurringContributors += gain(2);
+    p.community.memberSupportActions += gain(1);
   }
   if (action.id === "moderate-thread" || action.id === "moderate-fight" || action.id === "delegate-moderation") {
-    p.community.moderationSuccesses += 1;
-    p.relationship.publicConflictsResolved += 1;
+    p.community.moderationSuccesses += gain(1);
+    p.relationship.publicConflictsResolved += gain(1);
     if (action.id === "delegate-moderation") {
-      p.community.recurringContributors += 2;
-      p.viral.falloutManaged += 1;
+      p.community.recurringContributors += gain(2);
+      p.viral.falloutManaged += gain(1);
     }
   }
   if (action.id === "host-event" || action.id === "small-town-meetup") {
     const attendance = action.id === "small-town-meetup" ? 12 : 10;
-    p.organizer.eventsHosted += 1;
-    p.organizer.totalAttendance += attendance + Math.max(0, Math.round(state.followers.nicheMembers / 40));
-    p.organizer.recurringParticipants += 3;
-    p.organizer.offlineActionsCompleted += 1;
-    p.escape.directContactsBuilt += 1;
-    p.escape.offlineDays += 1;
+    p.organizer.eventsHosted += gain(1);
+    p.organizer.totalAttendance += gain(attendance + Math.max(0, Math.round(state.followers.nicheMembers / 40)));
+    p.organizer.recurringParticipants += gain(3);
+    p.organizer.offlineActionsCompleted += gain(1);
+    p.escape.directContactsBuilt += gain(1);
+    p.escape.offlineDays += gain(1);
   }
   if (action.id === "group-challenge") {
-    p.organizer.groupChallengesCompleted += 1;
-    p.organizer.recurringParticipants += 3;
-    p.community.helpfulMemberEvents += 1;
+    p.organizer.groupChallengesCompleted += gain(1);
+    p.organizer.recurringParticipants += gain(3);
+    p.community.helpfulMemberEvents += gain(1);
   }
   if (action.id === "private-message" || action.id === "dm-person") {
-    p.relationship.privateRepairs += 1;
-    p.relationship.directMessagesSent += 1;
-    p.escape.directContactsBuilt += 1;
+    p.relationship.privateRepairs += gain(1);
+    p.relationship.directMessagesSent += gain(1);
+    p.escape.directContactsBuilt += gain(1);
   }
   if (action.id === "apologize" || action.id === "refuse-argue") {
-    p.relationship.publicConflictsResolved += 1;
-    p.relationship.privateRepairs += action.id === "apologize" ? 1 : 0;
+    p.relationship.publicConflictsResolved += gain(1);
+    p.relationship.privateRepairs += action.id === "apologize" ? gain(1) : 0;
   }
   if (action.id === "block-mute" || action.id === "refuse-argue" || action.id === "schedule-recovery") {
-    p.escape.boundariesSet += 1;
-    p.escape.platformDependenceReduced += 1;
+    p.escape.boundariesSet += gain(1);
+    p.escape.platformDependenceReduced += gain(1);
   }
   if (action.id === "touch-grass" || action.id === "weekend-offline" || action.id === "schedule-recovery") {
-    p.escape.offlineDays += action.id === "weekend-offline" ? 2 : 1;
-    p.escape.platformDependenceReduced += 1;
+    p.escape.offlineDays += gain(action.id === "weekend-offline" ? 2 : 1);
+    p.escape.platformDependenceReduced += gain(1);
   }
   if (action.id === "take-community-independent") {
-    p.escape.exitPlanCompleted = true;
-    p.escape.directContactsBuilt += 2;
-    p.escape.offlineDays += 1;
-    p.escape.platformDependenceReduced += 2;
+    p.escape.exitPlanCompleted = gain(1) > 0;
+    p.escape.directContactsBuilt += gain(2);
+    p.escape.offlineDays += gain(1);
+    p.escape.platformDependenceReduced += gain(2);
   }
   if ((action.followers?.opportunityContacts ?? 0) > 0) {
-    p.creator.collaboratorsFound += 1;
+    p.creator.collaboratorsFound += gain(1);
   }
   p.viral.peakReach = Math.max(p.viral.peakReach, state.metrics.reach);
 }
@@ -1908,12 +1936,10 @@ function applyDailyMaintenance(state: GameState): void {
     effects.skillCred = (effects.skillCred ?? 0) - 1;
   }
   if (state.metrics.reach > 2500) {
-    effects.burnout = (effects.burnout ?? 0) + 1;
     effects.heat = (effects.heat ?? 0) + 1;
   }
   if (state.metrics.heat > 72) {
     effects.trust = (effects.trust ?? 0) - 1;
-    effects.burnout = (effects.burnout ?? 0) + 1;
   }
   applyEffects(state, effects);
 }
@@ -1953,7 +1979,11 @@ function applyEffects(state: GameState, effects: Partial<Metrics> = {}, multipli
     const [min, max] = METRIC_LIMITS[key];
     const before = state.metrics[key];
     const scaledValue = value > 0 && BENEFICIAL_METRICS.has(key) ? value * multiplier : value;
-    state.metrics[key] = clamp(state.metrics[key] + scaleMetricDelta(key, state.metrics[key], scaledValue), min, max);
+    const appliedValue =
+      scaledValue > 0 && BENEFICIAL_METRICS.has(key)
+        ? scaleMetricDelta(key, state.metrics[key], scaledValue)
+        : Math.round(scaledValue);
+    state.metrics[key] = clamp(state.metrics[key] + appliedValue, min, max);
     const actual = state.metrics[key] - before;
     if (actual) {
       deltas[key] = actual;
@@ -1994,6 +2024,13 @@ function applyFollowers(state: GameState, followers: Partial<Followers> = {}, mu
     }
   }
   return deltas;
+}
+
+function scaleMilestoneGain(value: number, multiplier: number): number {
+  if (value <= 0) return value;
+  const scaled = value * multiplier;
+  const reducedFloor = multiplier < 1 ? value * 0.5 : value;
+  return Math.round(Math.max(scaled, reducedFloor) * 100) / 100;
 }
 
 function applyRelationships(
@@ -2357,7 +2394,7 @@ function pathDisqualified(state: GameState, path: string): boolean {
     return state.metrics.realityDrift > 62;
   }
   if (path === "Escape") {
-    return !state.pathMilestones.escape.exitPlanCompleted || state.metrics.heat > 48;
+    return state.metrics.heat > 48;
   }
   return false;
 }
